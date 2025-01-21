@@ -19,11 +19,13 @@ const QRScanner = () => {
           width: 250,
           height: 250,
         },
-        fps: 10, // Increased FPS for better detection
+        fps: 15, // Increased FPS for better detection
         experimentalFeatures: {
           useBarCodeDetectorIfSupported: true
         },
         rememberLastUsedCamera: true,
+        aspectRatio: 1.0, // For better image quality
+        formatsToSupport: [ Html5Qrcode.FORMATS.QR_CODE ], // Focus on QR codes only
       },
       false
     );
@@ -73,7 +75,7 @@ const QRScanner = () => {
       } catch (error) {
         if (error instanceof Error) {
           if (error.message.includes("No MultiFormat Readers")) {
-            toast.error("Unable to detect QR code. Please ensure the image is clear and contains a valid QR code.");
+            toast.error("Unable to detect QR code. Try these tips:\n- Ensure image is well-lit and in focus\n- QR code should be clearly visible\n- Try a higher resolution image");
           } else {
             toast.error("Failed to process the file. Please try a different image with a clearer QR code.");
           }
@@ -109,13 +111,13 @@ const QRScanner = () => {
                       <p className="mb-2 text-sm text-gray-500">
                         <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
-                      <p className="text-xs text-gray-500">PDF, PNG, JPG or JPEG (high quality recommended)</p>
+                      <p className="text-xs text-gray-500">High-quality PNG, JPG or JPEG recommended for best results</p>
                     </div>
                     <Input
                       id="file-upload"
                       type="file"
                       className="hidden"
-                      accept=".pdf,.png,.jpg,.jpeg"
+                      accept=".png,.jpg,.jpeg"
                       onChange={handleFileUpload}
                       disabled={isProcessing}
                     />
