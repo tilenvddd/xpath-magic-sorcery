@@ -76,7 +76,14 @@ const QRScanner = () => {
       const processedFile = await enhanceImageQuality(file);
       const html5QrCode = new Html5Qrcode("reader");
       
-      const decodedText = await html5QrCode.scanFile(processedFile, /* showImage= */ true);
+      const config = {
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        },
+        verbose: false
+      };
+      
+      const decodedText = await html5QrCode.scanFile(processedFile, true, config);
       if (decodedText) {
         setScanResult(decodedText);
         toast.success("QR code successfully scanned!");
@@ -169,12 +176,14 @@ const QRScanner = () => {
   };
 
   useEffect(() => {
-    // Only initialize scanner when the reader element exists
     if (readerRef.current) {
       const newScanner = new Html5QrcodeScanner(
         "reader",
         {
-          qrbox: { width: 250, height: 250 },
+          qrbox: {
+            width: undefined,
+            height: undefined
+          },
           fps: 10,
           experimentalFeatures: {
             useBarCodeDetectorIfSupported: true
@@ -188,7 +197,8 @@ const QRScanner = () => {
           ],
           aspectRatio: 1.0,
           showTorchButtonIfSupported: true,
-          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
+          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+          verbose: false
         },
         false
       );
