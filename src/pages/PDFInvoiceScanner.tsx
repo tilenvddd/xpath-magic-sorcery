@@ -7,9 +7,6 @@ import { Input } from "@/components/ui/input";
 import { preprocessImage } from "@/utils/imageProcessing";
 import { Link } from "react-router-dom";
 import * as pdfjsLib from 'pdfjs-dist';
-// In your component:
-const processedFile = await preprocessImage(imageFile);
-const qrCodeMessage = await html5QrCode.scanFile(processedFile, true);
 
 // Initialize PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
