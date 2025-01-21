@@ -106,65 +106,88 @@ const QRScanner = () => {
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <Card className="max-w-3xl mx-auto">
-        <CardHeader>
-          <CardTitle>QR Code Scanner</CardTitle>
-          <CardDescription>
-            Upload an invoice/document or scan a QR code to analyze its contents
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-center w-full">
-                <label htmlFor="file-upload" className="w-full">
-                  <div className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <p className="mb-2 text-sm text-gray-500">
-                        <span className="font-semibold">Click to upload</span> or drag and drop
-                      </p>
-                      <p className="text-xs text-gray-500">High-quality PNG, JPG or JPEG recommended for best results</p>
-                    </div>
-                    <Input
-                      id="file-upload"
-                      type="file"
-                      className="hidden"
-                      accept=".png,.jpg,.jpeg"
-                      onChange={handleFileUpload}
-                      disabled={isProcessing}
-                    />
+    <div className="container mx-auto p-4 min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">QR Code Scanner</h1>
+          <p className="text-gray-600">Scan QR codes using your camera or upload an image containing a QR code</p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Camera Scanner Section */}
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-xl">Scan with Camera</CardTitle>
+              <CardDescription>
+                Position the QR code within the frame to scan
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div id="reader" className="overflow-hidden rounded-lg"></div>
+              {!scanResult && !isProcessing && (
+                <Button 
+                  onClick={startScanning}
+                  className="w-full mt-4"
+                >
+                  Start Camera Scanning
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* File Upload Section */}
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-xl">Upload QR Code Image</CardTitle>
+              <CardDescription>
+                Upload an image containing a QR code to scan
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <label 
+                htmlFor="file-upload" 
+                className="block w-full"
+              >
+                <div className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <svg className="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <p className="mb-2 text-sm text-gray-500">
+                      <span className="font-semibold">Click to upload</span> or drag and drop
+                    </p>
+                    <p className="text-xs text-gray-500">PNG, JPG or JPEG</p>
                   </div>
-                </label>
-              </div>
-              
-              <div className="text-center">
-                <p className="text-sm text-gray-500 mb-4">- OR -</p>
-                {!scanResult && !isProcessing && (
-                  <Button onClick={startScanning}>
-                    Start Camera Scanning
-                  </Button>
-                )}
-              </div>
-            </div>
+                  <Input
+                    id="file-upload"
+                    type="file"
+                    className="hidden"
+                    accept=".png,.jpg,.jpeg"
+                    onChange={handleFileUpload}
+                    disabled={isProcessing}
+                  />
+                </div>
+              </label>
+            </CardContent>
+          </Card>
+        </div>
 
-            <div id="reader" className="w-full max-w-xl mx-auto"></div>
-            
-            {isProcessing && (
-              <div className="text-center">
-                <p>Processing document...</p>
-              </div>
-            )}
-
-            {scanResult && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Scan Result</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-lg break-all">{scanResult}</p>
+        {/* Results Section */}
+        {(isProcessing || scanResult) && (
+          <Card className="mt-6 shadow-lg">
+            <CardHeader>
+              <CardTitle>Scan Result</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isProcessing ? (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                  <p className="mt-2 text-gray-600">Processing...</p>
+                </div>
+              ) : scanResult && (
+                <div className="space-y-4">
+                  <p className="text-lg break-all bg-gray-50 p-4 rounded-lg border">{scanResult}</p>
                   <Button 
-                    className="mt-4"
                     onClick={() => {
                       setScanResult(null);
                       startScanning();
@@ -172,12 +195,12 @@ const QRScanner = () => {
                   >
                     Scan Another Code
                   </Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 };
