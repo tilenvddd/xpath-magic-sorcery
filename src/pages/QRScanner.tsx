@@ -1,218 +1,259 @@
 import { useState, useEffect } from "react";
 import { Html5QrcodeScanner, Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { Upload, Camera } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Camera, Upload, Link } from "lucide-react";
 
 const QRScanner = () => {
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [scanner, setScanner] = useState<Html5QrcodeScanner | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [url, setUrl] = useState("");
+  const [activeScanner, setActiveScanner] = useState(false);
 
-  // DOM Ready function
-  const domReady = (fn: () => void) => {
-    if (
-      document.readyState === "complete" ||
-      document.readyState === "interactive"
-    ) {
-      setTimeout(fn, 1000);
-    } else {
-      document.addEventListener("DOMContentLoaded", fn);
-    }
-  };
-
-  useEffect(() => {
-    domReady(() => {
-      const newScanner = new Html5QrcodeScanner(
-        "reader",
-        {
-          qrbox: {
-            width: 250,
-            height: 250,
-          },
-          fps: 10,
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
-          },
-          rememberLastUsedCamera: true,
-          aspectRatio: 1.0,
-          formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ],
-        },
-        false
-      );
-
-      setScanner(newScanner);
+  const enhanceImageQuality = async (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        // Set optimal dimensions for QR scanning
+        const maxDimension = 1024;
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = (height / width) * maxDimension;
+            width = maxDimension;
+          } else {
+            width = (width / height) * maxDimension;
+            height = maxDimension;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          // Apply image smoothing for better quality
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+        }
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name, { type: 'image/png' }));
+          } else {
+            resolve(file);
+          }
+        }, 'image/png', 1.0);
+      };
+      img.src = URL.createObjectURL(file);
     });
-
-    return () => {
-      if (scanner) {
-        scanner.clear().catch(console.error);
-      }
-    };
-  }, []);
-
-  const handleScanSuccess = (decodedText: string) => {
-    setScanResult(decodedText);
-    if (scanner) {
-      scanner.clear();
-    }
-    toast.success("QR Code scanned successfully!");
-    setIsProcessing(false);
   };
 
-  const handleScanError = (err: string) => {
-    console.warn(err);
-    setIsProcessing(false);
-  };
-
-  const startScanning = () => {
-    if (scanner) {
-      scanner.render(handleScanSuccess, handleScanError);
-    }
-  };
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
-
+    setIsProcessing(true);
     try {
-      setIsProcessing(true);
+      const processedFile = await enhanceImageQuality(file);
       const html5QrCode = new Html5Qrcode("reader");
       
-      const imageUrl = URL.createObjectURL(file);
-      
-      try {
-        const decodedText = await html5QrCode.scanFile(file, true);
-        handleScanSuccess(decodedText);
-      } catch (error) {
-        if (error instanceof Error) {
-          if (error.message.includes("No MultiFormat Readers")) {
-            toast.error("Unable to detect QR code. Try these tips:\n- Ensure image is well-lit and in focus\n- QR code should be clearly visible\n- Try a higher resolution image");
-          } else {
-            toast.error("Failed to process the file. Please try a different image with a clearer QR code.");
-          }
-          console.log("Scanning error:", error.message);
-        }
-        handleScanError(error as string);
-      } finally {
-        URL.revokeObjectURL(imageUrl);
-        await html5QrCode.clear();
-      }
+      const decodedText = await html5QrCode.scanFile(processedFile, /* showImage= */ true);
+      setScanResult(decodedText);
+      toast.success("QR code successfully scanned!");
+      await html5QrCode.clear();
     } catch (error) {
-      toast.error("Error processing the file. Please try again with a different file.");
+      console.error(error);
+      if (error instanceof Error) {
+        if (error.message.includes("No MultiFormat Readers")) {
+          toast.error("Could not detect a valid QR code. Please try a clearer image.");
+        } else {
+          toast.error(`Failed to scan QR code: ${error.message}`);
+        }
+      } else {
+        toast.error("Failed to scan QR code from the uploaded file.");
+      }
+    } finally {
       setIsProcessing(false);
     }
   };
 
+  const handleUrlSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!url) {
+      toast.error("Please enter a valid URL");
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const file = new File([blob], "qr-from-url.png", { type: blob.type });
+      const html5QrCode = new Html5Qrcode("reader");
+      const decodedText = await html5QrCode.scanFile(file, /* showImage= */ true);
+      setScanResult(decodedText);
+      toast.success("QR code successfully scanned from URL!");
+      await html5QrCode.clear();
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to scan QR code from the URL.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const startScanning = () => {
+    setActiveScanner(true);
+    if (scanner) {
+      scanner.render(
+        (decodedText: string) => {
+          setScanResult(decodedText);
+          toast.success("QR Code successfully scanned!");
+          scanner.clear();
+          setActiveScanner(false);
+        },
+        (errorMessage: string) => {
+          console.warn("QR Code scan failed: ", errorMessage);
+        }
+      );
+    }
+  };
+
+  useEffect(() => {
+    const newScanner = new Html5QrcodeScanner(
+      "reader",
+      {
+        qrbox: { width: 250, height: 250 },
+        fps: 10,
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        },
+        rememberLastUsedCamera: true,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.DATA_MATRIX,
+          Html5QrcodeSupportedFormats.AZTEC,
+          Html5QrcodeSupportedFormats.PDF_417
+        ],
+        aspectRatio: 1.0,
+        showTorchButtonIfSupported: true,
+      },
+      false
+    );
+    setScanner(newScanner);
+
+    return () => {
+      if (newScanner) {
+        newScanner.clear().catch(console.error);
+      }
+    };
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800 py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-3">
-            QR Code Scanner
-          </h1>
-          <p className="text-muted-foreground">
-            Scan QR codes using your camera or upload an image containing a QR code
-          </p>
-        </div>
+    <div className="container mx-auto p-4 max-w-2xl">
+      <Card>
+        <CardContent className="p-6">
+          <Tabs defaultValue="camera" className="w-full">
+            <TabsList className="grid w-full grid-cols-3 mb-6">
+              <TabsTrigger value="camera" className="flex items-center gap-2">
+                <Camera className="w-4 h-4" />
+                Camera
+              </TabsTrigger>
+              <TabsTrigger value="file" className="flex items-center gap-2">
+                <Upload className="w-4 h-4" />
+                File Upload
+              </TabsTrigger>
+              <TabsTrigger value="url" className="flex items-center gap-2">
+                <Link className="w-4 h-4" />
+                URL
+              </TabsTrigger>
+            </TabsList>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Camera Scanner Section */}
-          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm dark:bg-gray-900/80">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Camera className="w-5 h-5" />
-                Scan with Camera
-              </CardTitle>
-              <CardDescription>
-                Position the QR code within the frame to scan
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div id="reader" className="overflow-hidden rounded-lg bg-black/5"></div>
-              {!scanResult && !isProcessing && (
-                <Button 
-                  onClick={startScanning}
-                  className="w-full mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
-                >
-                  Start Camera Scanning
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* File Upload Section */}
-          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm dark:bg-gray-900/80">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="w-5 h-5" />
-                Upload QR Code Image
-              </CardTitle>
-              <CardDescription>
-                Upload an image containing a QR code to scan
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <label 
-                htmlFor="file-upload" 
-                className="block w-full cursor-pointer"
-              >
-                <div className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg border-gray-300/50 bg-gray-50/50 hover:bg-gray-100/50 dark:border-gray-600/50 dark:bg-gray-800/50 dark:hover:bg-gray-700/50 transition-colors">
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <Upload className="w-10 h-10 mb-3 text-gray-400" />
-                    <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-                      <span className="font-semibold">Click to upload</span> or drag and drop
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">PNG, JPG or JPEG</p>
-                  </div>
-                  <Input
-                    id="file-upload"
-                    type="file"
-                    className="hidden"
-                    accept=".png,.jpg,.jpeg"
-                    onChange={handleFileUpload}
-                    disabled={isProcessing}
-                  />
-                </div>
-              </label>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Results Section */}
-        {(isProcessing || scanResult) && (
-          <Card className="mt-6 border-0 shadow-lg bg-white/80 backdrop-blur-sm dark:bg-gray-900/80">
-            <CardHeader>
-              <CardTitle>Scan Result</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isProcessing ? (
-                <div className="text-center py-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-                  <p className="mt-2 text-muted-foreground">Processing...</p>
-                </div>
-              ) : scanResult && (
-                <div className="space-y-4">
-                  <p className="text-lg break-all bg-gray-50/50 dark:bg-gray-800/50 p-4 rounded-lg border border-gray-200/50 dark:border-gray-700/50">
-                    {scanResult}
-                  </p>
-                  <Button 
-                    onClick={() => {
-                      setScanResult(null);
-                      startScanning();
-                    }}
-                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
-                  >
-                    Scan Another Code
+            <TabsContent value="camera" className="mt-0">
+              {!scanResult && !activeScanner && (
+                <div className="text-center mb-4">
+                  <Button onClick={startScanning} className="w-full">
+                    Start Camera Scanning
                   </Button>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
+              <div id="reader" className="w-full aspect-square max-w-xl mx-auto rounded-lg overflow-hidden"></div>
+            </TabsContent>
+
+            <TabsContent value="file" className="mt-0">
+              <div className="flex flex-col gap-4">
+                <label htmlFor="file-upload" className="w-full">
+                  <div className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Upload className="w-10 h-10 mb-3 text-gray-400" />
+                      <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
+                        <span className="font-semibold">Click to upload</span> or drag and drop
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        PNG, JPG, JPEG, or PDF files supported
+                      </p>
+                    </div>
+                    <Input
+                      id="file-upload"
+                      type="file"
+                      className="hidden"
+                      accept=".png,.jpg,.jpeg,.pdf"
+                      onChange={handleFileUpload}
+                      disabled={isProcessing}
+                    />
+                  </div>
+                </label>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="url" className="mt-0">
+              <form onSubmit={handleUrlSubmit} className="flex flex-col gap-4">
+                <Input
+                  type="url"
+                  placeholder="Enter image URL containing QR code"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  className="flex-1"
+                  disabled={isProcessing}
+                />
+                <Button type="submit" disabled={isProcessing || !url} className="w-full">
+                  Scan QR Code from URL
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
+
+          {isProcessing && (
+            <div className="text-center mt-4">
+              <p className="text-gray-500">Processing document...</p>
+            </div>
+          )}
+
+          {scanResult && (
+            <div className="mt-6 p-4 border rounded-lg bg-gray-50">
+              <h3 className="font-semibold mb-2">Scan Result:</h3>
+              <p className="break-all text-gray-700">{scanResult}</p>
+              <Button
+                className="mt-4 w-full"
+                onClick={() => {
+                  setScanResult(null);
+                  setUrl("");
+                  setActiveScanner(false);
+                }}
+              >
+                Scan Another Code
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
