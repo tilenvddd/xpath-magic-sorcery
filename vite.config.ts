@@ -25,5 +25,8 @@ export default defineConfig(({ mode }) => ({
         'pdfjs-dist/build/pdf.worker.entry'
       ]
     }
+  },
+  optimizeDeps: {
+    include: ['pdfjs-dist']
   }
 }));
