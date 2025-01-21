@@ -19,7 +19,6 @@ const QRScanner = () => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        // Increase resolution for better scanning
         const maxDimension = 1600; // Increased from 1024
         let width = img.width;
         let height = img.height;
@@ -39,10 +38,8 @@ const QRScanner = () => {
         
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          // Enhanced image processing
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
-          // Improved contrast and brightness
           ctx.filter = 'contrast(1.4) brightness(1.2) saturate(1.2)';
           ctx.drawImage(img, 0, 0, width, height);
         }
@@ -186,14 +183,7 @@ const QRScanner = () => {
         ],
         aspectRatio: 1.0,
         showTorchButtonIfSupported: true,
-        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-        verbose: true, // Enable verbose mode for better debugging
-        disableFlip: false, // Allow image flipping
-        videoConstraints: {
-          width: { min: 640, ideal: 1080, max: 1920 },
-          height: { min: 480, ideal: 720, max: 1080 },
-          facingMode: { ideal: "environment" }
-        }
+        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
       },
       false
     );
