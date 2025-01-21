@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Html5QrcodeScanner, Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScanType } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,6 +13,7 @@ const QRScanner = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [url, setUrl] = useState("");
   const [activeScanner, setActiveScanner] = useState(false);
+  const readerRef = useRef<HTMLDivElement>(null);
 
   const enhanceImageQuality = async (file: File): Promise<File> => {
     return new Promise((resolve) => {
@@ -168,35 +169,38 @@ const QRScanner = () => {
   };
 
   useEffect(() => {
-    const newScanner = new Html5QrcodeScanner(
-      "reader",
-      {
-        qrbox: { width: 250, height: 250 },
-        fps: 10,
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true
+    // Only initialize scanner when the reader element exists
+    if (readerRef.current) {
+      const newScanner = new Html5QrcodeScanner(
+        "reader",
+        {
+          qrbox: { width: 250, height: 250 },
+          fps: 10,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          },
+          rememberLastUsedCamera: true,
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.DATA_MATRIX,
+            Html5QrcodeSupportedFormats.AZTEC,
+            Html5QrcodeSupportedFormats.PDF_417
+          ],
+          aspectRatio: 1.0,
+          showTorchButtonIfSupported: true,
+          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
         },
-        rememberLastUsedCamera: true,
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.QR_CODE,
-          Html5QrcodeSupportedFormats.DATA_MATRIX,
-          Html5QrcodeSupportedFormats.AZTEC,
-          Html5QrcodeSupportedFormats.PDF_417
-        ],
-        aspectRatio: 1.0,
-        showTorchButtonIfSupported: true,
-        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
-      },
-      false
-    );
-    setScanner(newScanner);
+        false
+      );
+      setScanner(newScanner);
 
-    return () => {
-      if (newScanner) {
-        newScanner.clear().catch(console.error);
-      }
-    };
-  }, []);
+      return () => {
+        if (newScanner) {
+          newScanner.clear().catch(console.error);
+        }
+      };
+    }
+  }, [readerRef.current]);
 
   return (
     <div className="container mx-auto p-4 max-w-2xl">
@@ -226,7 +230,7 @@ const QRScanner = () => {
                   </Button>
                 </div>
               )}
-              <div id="reader" className="w-full aspect-square max-w-xl mx-auto rounded-lg overflow-hidden"></div>
+              <div id="reader" ref={readerRef} className="w-full aspect-square max-w-xl mx-auto rounded-lg overflow-hidden"></div>
             </TabsContent>
 
             <TabsContent value="file" className="mt-0">
