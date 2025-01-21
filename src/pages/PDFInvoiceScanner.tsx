@@ -6,6 +6,10 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { preprocessImage } from "@/utils/imageProcessing";
 import { Link } from "react-router-dom";
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Set worker path for PDF.js
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const PDFInvoiceScanner = () => {
   const [scanResult, setScanResult] = useState<string | null>(null);
@@ -22,11 +26,34 @@ const PDFInvoiceScanner = () => {
     setIsProcessing(false);
   };
 
+  const convertPDFToImage = async (file: File): Promise<HTMLCanvasElement> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const page = await pdf.getPage(1); // Get first page
+    
+    const viewport = page.getViewport({ scale: 2.0 }); // Increase scale for better quality
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    
+    if (!context) {
+      throw new Error('Could not get canvas context');
+    }
+    
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    
+    await page.render({
+      canvasContext: context,
+      viewport: viewport
+    }).promise;
+    
+    return canvas;
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Check if the file is a PDF
     if (file.type !== 'application/pdf') {
       toast.error("Please upload a PDF invoice document");
       return;
@@ -37,21 +64,30 @@ const PDFInvoiceScanner = () => {
       const html5QrCode = new Html5Qrcode("reader");
       
       try {
-        const processedFile = await preprocessImage(file);
+        // Convert PDF to image
+        const canvas = await convertPDFToImage(file);
+        const imageBlob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+          }, 'image/jpeg', 1.0);
+        });
+        
+        const imageFile = new File([imageBlob], 'pdf-page.jpg', { type: 'image/jpeg' });
+        const processedFile = await preprocessImage(imageFile);
+        
         const qrCodeMessage = await html5QrCode.scanFile(processedFile, /* verbose= */ true);
         
-        // Validate QR code format (you can customize this validation)
         if (qrCodeMessage.length > 0) {
           handleScanSuccess(qrCodeMessage);
         } else {
-          toast.error("Invalid QR code format detected");
+          toast.error("No valid QR code found in the PDF");
         }
       } catch (error) {
         if (error instanceof Error) {
           if (error.message.includes("No MultiFormat Readers")) {
-            toast.error("Unable to detect QR code in the invoice. Try these tips:\n- Ensure PDF is high quality\n- QR code should be clearly visible\n- Try converting PDF to image first");
+            toast.error("No QR code found in the invoice. Please ensure the PDF has a clear QR code.");
           } else {
-            toast.error("Failed to process the invoice. Please try a different PDF with a clearer QR code.");
+            toast.error("Failed to process the PDF. Please try a different file with a clearer QR code.");
           }
           console.log("Scanning error:", error.message);
         }
