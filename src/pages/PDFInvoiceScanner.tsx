@@ -39,7 +39,10 @@ const PDFInvoiceScanner = () => {
     container.style.position = 'absolute';
     container.style.left = '-9999px';
     document.body.appendChild(container);
-    
+
+    // Initialize a new QRCode scanner
+    const html5QrCode = new Html5Qrcode("reader");
+
     try {
       // Process each page
       for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
@@ -55,15 +58,15 @@ const PDFInvoiceScanner = () => {
           willReadFrequently: true,
           desynchronized: true
         });
-        
+
         if (!context) {
           throw new Error('Could not get canvas context');
         }
-        
+
         context.imageSmoothingEnabled = false;
         canvas.height = viewport.height;
         canvas.width = viewport.width;
-        
+
         const renderContext = {
           canvasContext: context,
           viewport: viewport,
@@ -78,24 +81,25 @@ const PDFInvoiceScanner = () => {
         const blob = await new Promise<Blob>((resolve) => {
           canvas.toBlob((b) => {
             if (b) resolve(b);
-          }, 'image/jpeg', 1.0);
+          }, 'image/jpeg', 1.0);  // Convert to JPEG for better compatibility
         });
 
         // Create a File object from the blob
         const canvasFile = new File([blob], 'page.jpg', { type: 'image/jpeg' });
 
-        // Try to detect QR code
-        const html5QrCode = new Html5Qrcode("reader");
+        // Scan for QR Code on the current page
         try {
           const qrCodeMessage = await html5QrCode.scanFile(canvasFile, true);
-          if (qrCodeMessage) {
-            return canvas; // Return if QR code found
+          if (qrCodeMessage && qrCodeMessage.length > 0) {
+            return canvas; // Return the canvas of the page with QR code found
           }
         } catch (error) {
-          // Continue to next page if no QR code found
-          await html5QrCode.clear();
+          // Continue processing next page if no QR code is found on this one
+          console.warn(`Page ${pageNum} did not contain a QR code. Skipping.`);
+        } finally {
+          await html5QrCode.clear(); // Reset qr code scanner between pages
         }
-        
+
         container.removeChild(canvas);
       }
       
@@ -117,22 +121,23 @@ const PDFInvoiceScanner = () => {
 
     try {
       setIsProcessing(true);
-      const html5QrCode = new Html5Qrcode("reader");
       
-      try {
-        // Convert the PDF to image
-        const canvas = await convertPDFToImage(file);
-        const imageBlob = await new Promise<Blob>((resolve) => {
-          canvas.toBlob((blob) => {
-            if (blob) resolve(blob);
-          }, 'image/jpeg', 1.0); // Convert canvas to high-quality JPEG
-        });
-        
-        // Convert Blob to file, preprocess it
-        const imageFile = new File([imageBlob], 'pdf-page.jpg', { type: 'image/jpeg' });
-        const processedFile = await preprocessImage(imageFile);
+      // Call the PDF conversion to image function
+      const canvas = await convertPDFToImage(file);
+      const imageBlob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+        }, 'image/jpeg', 1.0); // Convert canvas to high-quality JPEG
+      });
+      
+      // Convert Blob to file, preprocess it
+      const imageFile = new File([imageBlob], 'pdf-page.jpg', { type: 'image/jpeg' });
+      const processedFile = await preprocessImage(imageFile);
 
-        // Scan for QR code
+      // Scan for QR code on the processed image
+      const html5QrCode = new Html5Qrcode("reader");
+
+      try {
         const qrCodeMessage = await html5QrCode.scanFile(processedFile, true);
 
         if (qrCodeMessage.length > 0) {
@@ -142,17 +147,18 @@ const PDFInvoiceScanner = () => {
             duration: 5000
           });
         }
-      } catch (error) {
-        if (error instanceof Error) {
-          console.error("Error during PDF processing:", error);
-          toast.error("Failed to process the PDF. Make sure it’s not encrypted, corrupted, or too large.");
-        }
-        handleScanError(error as string);
+      } catch (scanError) {
+        console.error("QR Code scanning failed: ", scanError);
+        toast.error("QR Code scanning failed. Please try again.");
       } finally {
         await html5QrCode.clear();
       }
+
     } catch (error) {
-      toast.error("Error processing the PDF. Please try again with a different file.");
+      console.error("Error during PDF processing:", error);
+      toast.error("Failed to process the PDF. Make sure it’s not encrypted, corrupted, or too large.");
+      handleScanError(error as string);
+    } finally {
       setIsProcessing(false);
     }
   };
