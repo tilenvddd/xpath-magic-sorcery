@@ -64,6 +64,12 @@ const QRScanner = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Validate file type
+    if (!['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'].includes(file.type)) {
+      toast.error('Please upload a valid image (JPEG, PNG) or PDF file');
+      return;
+    }
+
     try {
       setIsProcessing(true);
       const html5QrCode = new Html5Qrcode("reader");
@@ -111,13 +117,13 @@ const QRScanner = () => {
                       <p className="mb-2 text-sm text-gray-500">
                         <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
-                      <p className="text-xs text-gray-500">High-quality PNG, JPG or JPEG recommended for best results</p>
+                      <p className="text-xs text-gray-500">Upload a PDF document or high-quality PNG, JPG, JPEG image</p>
                     </div>
                     <Input
                       id="file-upload"
                       type="file"
                       className="hidden"
-                      accept=".png,.jpg,.jpeg"
+                      accept=".png,.jpg,.jpeg,.pdf"
                       onChange={handleFileUpload}
                       disabled={isProcessing}
                     />

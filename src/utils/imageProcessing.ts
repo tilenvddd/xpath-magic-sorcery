@@ -1,4 +1,54 @@
+import { getDocument, PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
+
+// Initialize PDF.js worker
+const pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.entry');
+if (typeof window !== 'undefined') {
+  const pdfjsLib = await import('pdfjs-dist');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+}
+
+async function convertPDFToImage(file: File): Promise<File> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await getDocument({ data: arrayBuffer }).promise;
+  const page = await pdf.getPage(1); // Get first page
+  
+  const viewport = page.getViewport({ scale: 2.0 }); // Scale up for better quality
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  
+  if (!ctx) {
+    throw new Error('Could not get canvas context');
+  }
+  
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  
+  await page.render({
+    canvasContext: ctx,
+    viewport: viewport
+  }).promise;
+  
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Could not create blob from PDF'));
+        return;
+      }
+      const imageFile = new File([blob], 'converted-pdf.png', {
+        type: 'image/png',
+        lastModified: Date.now(),
+      });
+      resolve(imageFile);
+    }, 'image/png');
+  });
+}
+
 export const preprocessImage = async (file: File): Promise<File> => {
+  // If it's a PDF, convert it to an image first
+  if (file.type === 'application/pdf') {
+    file = await convertPDFToImage(file);
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     const canvas = document.createElement('canvas');
