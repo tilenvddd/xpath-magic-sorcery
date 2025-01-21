@@ -11,8 +11,8 @@ export const preprocessImage = async (file: File): Promise<File> => {
 
     img.onload = () => {
       // Set reasonable maximum dimensions
-      const MAX_WIDTH = 1200;
-      const MAX_HEIGHT = 1200;
+      const MAX_WIDTH = 1024;
+      const MAX_HEIGHT = 1024;
 
       let width = img.width;
       let height = img.height;
