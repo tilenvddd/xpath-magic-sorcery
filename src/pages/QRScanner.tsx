@@ -20,7 +20,6 @@ const QRScanner = () => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        // Set optimal dimensions for QR scanning
         const maxDimension = 1024;
         let width = img.width;
         let height = img.height;
@@ -40,7 +39,6 @@ const QRScanner = () => {
         
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          // Apply image smoothing and sharpening
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
           ctx.filter = 'contrast(1.2) brightness(1.1)';
@@ -76,8 +74,7 @@ const QRScanner = () => {
       const processedFile = await enhanceImageQuality(file);
       const html5QrCode = new Html5Qrcode("reader");
       
-      // Modified to use only supported arguments
-      const decodedText = await html5QrCode.scanFile(processedFile, /* showImage= */ true);
+      const decodedText = await html5QrCode.scanFile(processedFile, true);
       if (decodedText) {
         setScanResult(decodedText);
         toast.success("QR code successfully scanned!");
@@ -129,7 +126,7 @@ const QRScanner = () => {
       const blob = await response.blob();
       const file = new File([blob], "qr-from-url.png", { type: blob.type });
       const html5QrCode = new Html5Qrcode("reader");
-      const decodedText = await html5QrCode.scanFile(file, /* showImage= */ true);
+      const decodedText = await html5QrCode.scanFile(file, true);
       
       if (decodedText) {
         setScanResult(decodedText);
