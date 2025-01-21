@@ -34,45 +34,87 @@ const PDFInvoiceScanner = () => {
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     const totalPages = pdf.numPages;
     
-    // Process each page, if QR code is found, return immediately
-    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const scale = 8.0;
-      const viewport = page.getViewport({ scale });
-      
-      // Render page onto canvas
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
-      
-      if (!context) {
-        throw new Error('Could not get canvas context');
-      }
-
-      context.imageSmoothingEnabled = false;
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
-
-      const renderContext = {
-        canvasContext: context,
-        viewport: viewport,
-      };
-
-      // Render PDF page to canvas
-      await page.render(renderContext).promise;
-
-      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-
-      // Attempt to scan the canvas for a QR code
-      const html5QrCode = new Html5Qrcode("reader");
-      const qrCodeDetected = await html5QrCode.scanFile(imageData, true);
-
-      if (qrCodeDetected) {
-        return canvas; // Return as soon as QR code is found on any page
-      }
-    }
+    // Create a hidden container for the canvas
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    document.body.appendChild(container);
     
-    // If no QR code found
-    throw new Error("No QR code found in any page");
+    try {
+      // Process each page
+      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const scale = 8.0;
+        const viewport = page.getViewport({ scale });
+        
+        const canvas = document.createElement('canvas');
+        container.appendChild(canvas); // Attach canvas to container
+        
+        const context = canvas.getContext('2d', { 
+          alpha: false,
+          willReadFrequently: true,
+          desynchronized: true
+        });
+        
+        if (!context) {
+          throw new Error('Could not get canvas context');
+        }
+        
+        context.imageSmoothingEnabled = false;
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+          renderInteractiveForms: false,
+          enableWebGL: true,
+          background: 'white'
+        };
+        
+        await page.render(renderContext).promise;
+        
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        for (let i = 0; i < data.length; i += 4) {
+          const luminance = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+          const threshold = 160;
+          const gamma = 1.5;
+          
+          const normalizedLuminance = Math.pow(luminance / 255, gamma) * 255;
+          const newValue = normalizedLuminance > threshold ? 255 : 0;
+          
+          const edgeDetection = Math.abs(luminance - threshold) < 20;
+          const finalValue = edgeDetection ? (luminance > threshold ? 255 : 0) : newValue;
+          
+          data[i] = finalValue;
+          data[i + 1] = finalValue;
+          data[i + 2] = finalValue;
+          data[i + 3] = 255;
+        }
+        
+        context.putImageData(imageData, 0, 0);
+
+        // Try to detect QR code
+        const html5QrCode = new Html5Qrcode("reader");
+        try {
+          const qrCodeMessage = await html5QrCode.scanFile(canvas, true);
+          if (qrCodeMessage) {
+            return canvas; // Return if QR code found
+          }
+        } catch (error) {
+          // Continue to next page if no QR code found
+          await html5QrCode.clear();
+        }
+        
+        container.removeChild(canvas); // Clean up current canvas
+      }
+      
+      throw new Error("No QR code found in any page");
+    } finally {
+      document.body.removeChild(container); // Clean up container
+    }
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
