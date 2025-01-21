@@ -21,9 +21,12 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     rollupOptions: {
-      external: [
-        'pdfjs-dist/build/pdf.worker.entry'
-      ]
+      external: [],
+      output: {
+        manualChunks: {
+          pdfjs: ['pdfjs-dist']
+        }
+      }
     }
   }
 }));

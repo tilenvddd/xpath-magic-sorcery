@@ -1,11 +1,14 @@
-import { getDocument } from 'pdfjs-dist';
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 
 // Initialize PDF.js worker
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.entry';
-
 if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+  // We need to import the worker as a URL, not as a module
+  const pdfjsWorker = new URL(
+    'pdfjs-dist/build/pdf.worker.mjs',
+    import.meta.url
+  ).toString();
+  
+  GlobalWorkerOptions.workerSrc = pdfjsWorker;
 }
 
 async function convertPDFToImage(file: File): Promise<File> {
