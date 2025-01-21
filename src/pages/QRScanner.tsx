@@ -9,6 +9,7 @@ const QRScanner = () => {
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [scanner, setScanner] = useState<Html5QrcodeScanner | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [url, setUrl] = useState("");
 
   const enhanceImageQuality = (file: File): Promise<string> => {
     return new Promise((resolve) => {
@@ -31,6 +32,29 @@ const QRScanner = () => {
     } catch (error) {
       console.error(error);
       toast.error("Failed to scan QR code from the uploaded file.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleUrlSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!url) {
+      toast.error("Please enter a valid URL");
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const file = new File([blob], "qr-from-url.png", { type: blob.type });
+      const html5QrCode = new Html5Qrcode("reader");
+      const decodedText = await html5QrCode.scanFile(file, /* showImage= */ true);
+      setScanResult(decodedText);
+      toast.success("QR code successfully scanned from URL!");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to scan QR code from the URL.");
     } finally {
       setIsProcessing(false);
     }
@@ -84,6 +108,7 @@ const QRScanner = () => {
         <CardContent>
           <div className="space-y-4">
             <div className="flex flex-col gap-4">
+              {/* File Upload Box */}
               <div className="flex items-center justify-center w-full">
                 <label htmlFor="file-upload" className="w-full">
                   <div className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
@@ -105,6 +130,24 @@ const QRScanner = () => {
                     />
                   </div>
                 </label>
+              </div>
+
+              {/* URL Input Box */}
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-gray-500 text-center">- OR -</p>
+                <form onSubmit={handleUrlSubmit} className="flex gap-2">
+                  <Input
+                    type="url"
+                    placeholder="Enter image URL"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    className="flex-1"
+                    disabled={isProcessing}
+                  />
+                  <Button type="submit" disabled={isProcessing || !url}>
+                    Scan URL
+                  </Button>
+                </form>
               </div>
               
               <div className="text-center">
@@ -136,6 +179,7 @@ const QRScanner = () => {
                     className="mt-4"
                     onClick={() => {
                       setScanResult(null);
+                      setUrl("");
                       startScanning();
                     }}
                   >
