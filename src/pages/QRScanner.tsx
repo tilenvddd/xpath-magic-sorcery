@@ -29,6 +29,7 @@ const QRScanner = () => {
       const decodedText = await html5QrCode.scanFile(file, /* showImage= */ true);
       setScanResult(decodedText);
       toast.success("QR code successfully scanned!");
+      await html5QrCode.clear();
     } catch (error) {
       console.error(error);
       toast.error("Failed to scan QR code from the uploaded file.");
@@ -52,6 +53,7 @@ const QRScanner = () => {
       const decodedText = await html5QrCode.scanFile(file, /* showImage= */ true);
       setScanResult(decodedText);
       toast.success("QR code successfully scanned from URL!");
+      await html5QrCode.clear();
     } catch (error) {
       console.error(error);
       toast.error("Failed to scan QR code from the URL.");
@@ -79,11 +81,15 @@ const QRScanner = () => {
     const newScanner = new Html5QrcodeScanner(
       "reader",
       {
-        qrbox: { width: 300, height: 300 },
-        fps: 15,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        qrbox: { width: 250, height: 250 }, // Reduced size for better accuracy
+        fps: 10, // Reduced FPS for better processing
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        },
         rememberLastUsedCamera: true,
         formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+        aspectRatio: 1.0,
+        showTorchButtonIfSupported: true,
       },
       false
     );
@@ -160,7 +166,7 @@ const QRScanner = () => {
               </div>
             </div>
 
-            <div id="reader" className="w-full max-w-xl mx-auto"></div>
+            <div id="reader" className="w-full max-w-xl mx-auto min-h-[300px]"></div>
             
             {isProcessing && (
               <div className="text-center">
