@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { preprocessImage } from "@/utils/imageProcessing";
 
 const QRScanner = () => {
   const [scanResult, setScanResult] = useState<string | null>(null);
@@ -68,7 +69,9 @@ const QRScanner = () => {
       const html5QrCode = new Html5Qrcode("reader");
       
       try {
-        const decodedText = await html5QrCode.scanFile(file, /* verbose= */ true);
+        // Preprocess the image before scanning
+        const processedFile = await preprocessImage(file);
+        const decodedText = await html5QrCode.scanFile(processedFile, /* verbose= */ true);
         handleScanSuccess(decodedText);
       } catch (error) {
         if (error instanceof Error) {
