@@ -1,95 +1,61 @@
-export const preprocessImageWithROI = async (file: File): Promise<File> => {
+export const preprocessImage = async (file: File): Promise<File> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    
+
     if (!ctx) {
-      reject(new Error('Could not get canvas context. Ensure the browser supports canvas.'));
+      reject(new Error('Could not get canvas context'));
       return;
     }
 
-    img.onload = async () => {
-      const MAX_DIMENSION = 2048; // Max allowable dimensions for large images
-      const MIN_DIMENSION = 256; // Min allowable dimensions for dynamic resizing
-      const SCALING_FACTOR = 0.8; // Downscale by 20% at each iteration
+    img.onload = () => {
+      // Define your Region of Interest (ROI)
+      const ROI = { x: 100, y: 100, width: 800, height: 800 }; // Example ROI: top-left corner at (100,100), 800x800 pixels size
 
-      let currentWidth = img.width;
-      let currentHeight = img.height;
+      let width = img.width;
+      let height = img.height;
 
-      // Define possible ROIs dynamically, here we are considering different sections of the image
-      const ROIs = [
-        { x: 0, y: 0, width: currentWidth / 2, height: currentHeight / 2 }, // top-left quarter
-        { x: currentWidth / 2, y: 0, width: currentWidth / 2, height: currentHeight / 2 }, // top-right quarter
-        { x: 0, y: currentHeight / 2, width: currentWidth / 2, height: currentHeight / 2 }, // bottom-left quarter
-        { x: currentWidth / 2, y: currentHeight / 2, width: currentWidth / 2, height: currentHeight / 2 }, // bottom-right quarter
-      ];
-
-      const processAtScaleForROI = (roi: {x: number, y: number, width: number, height: number}): Promise<File | null> =>
-        new Promise((innerResolve, innerReject) => {
-          try {
-            // Scale to new dimensions
-            canvas.width = roi.width;
-            canvas.height = roi.height;
-            
-            // Optional: Add padding for better QR detection (optional)
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Apply image enhancement
-            ctx.filter = 'contrast(1.5) brightness(1.2) grayscale(1)';
-            ctx.drawImage(img, roi.x, roi.y, roi.width, roi.height, 0, 0, canvas.width, canvas.height);
-
-            // Convert to Blob for further processing or QR detection
-            canvas.toBlob((blob) => {
-              if (!blob) {
-                innerResolve(null);
-                return;
-              }
-              const scaledFile = new File([blob], file.name, {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-              });
-              innerResolve(scaledFile);
-            }, 'image/jpeg', 0.9);
-          } catch (e) {
-            innerReject(e);
-          }
-        });
-
-      // Loop to process dynamically at multiple scales for each ROI
-      let processedFile = null;
-
-      for (let i = 0; i < ROIs.length; i++) {
-        const roi = ROIs[i];
-
-        while (currentWidth >= MIN_DIMENSION && currentHeight >= MIN_DIMENSION) {
-          const scaledFile = await processAtScaleForROI(roi);
-          if (scaledFile) {
-            processedFile = scaledFile;
-            break;
-          }
-
-          // Resize for the next iteration if needed
-          currentWidth = Math.floor(currentWidth * SCALING_FACTOR);
-          currentHeight = Math.floor(currentHeight * SCALING_FACTOR);
+      // Calculate new dimensions while maintaining aspect ratio for full image size or within ROI bounds
+      if (width > height) {
+        if (width > ROI.width) { // Adjust width to ROI width if necessary
+          height = Math.round((height * ROI.width) / width);
+          width = ROI.width;
         }
-
-        if (processedFile) {
-          // Successfully processed a file with a valid QR detected within an ROI
-          break;
-        }
-      }
-
-      if (processedFile) {
-        resolve(processedFile);
       } else {
-        reject(new Error('Failed to process image at any scale for the defined ROIs.'));
+        if (height > ROI.height) { // Adjust height to ROI height if necessary
+          width = Math.round((width * ROI.height) / height);
+          height = ROI.height;
+        }
       }
+
+      // Set canvas dimensions
+      canvas.width = width;
+      canvas.height = height;
+
+      // Apply image processing within the defined ROI area
+      ctx.filter = 'contrast(1.2) brightness(1.1) grayscale(1)';
+      
+      // Draw only the image region of interest (crop the image based on the ROI)
+      ctx.drawImage(img, ROI.x, ROI.y, ROI.width, ROI.height, 0, 0, width, height);
+
+      // Convert canvas to blob
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('Could not create blob from canvas'));
+          return;
+        }
+
+        // Create a new file from the blob
+        const processedFile = new File([blob], file.name, {
+          type: 'image/jpeg',
+          lastModified: Date.now(),
+        });
+        resolve(processedFile);
+      }, 'image/jpeg', 0.9);
     };
 
-    img.onerror = () =>
-      reject(new Error('Failed to load image. Ensure the file is valid and not corrupted.'));
+    img.onerror = () => reject(new Error('Failed to load image'));
     img.src = URL.createObjectURL(file);
   });
 };
