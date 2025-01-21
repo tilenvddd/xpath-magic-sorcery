@@ -76,14 +76,8 @@ const QRScanner = () => {
       const processedFile = await enhanceImageQuality(file);
       const html5QrCode = new Html5Qrcode("reader");
       
-      const config = {
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true
-        },
-        verbose: false
-      };
-      
-      const decodedText = await html5QrCode.scanFile(processedFile, true, config);
+      // Modified to use only supported arguments
+      const decodedText = await html5QrCode.scanFile(processedFile, /* showImage= */ true);
       if (decodedText) {
         setScanResult(decodedText);
         toast.success("QR code successfully scanned!");
@@ -197,8 +191,7 @@ const QRScanner = () => {
           ],
           aspectRatio: 1.0,
           showTorchButtonIfSupported: true,
-          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-          verbose: false
+          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
         },
         false
       );
