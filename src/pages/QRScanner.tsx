@@ -25,7 +25,7 @@ const QRScanner = () => {
     try {
       const processedImage = await enhanceImageQuality(file);
       const html5QrCode = new Html5Qrcode("reader");
-      const decodedText = await html5QrCode.decodeFile(processedImage);
+      const decodedText = await html5QrCode.scanFile(file, /* showImage= */ true);
       setScanResult(decodedText);
       toast.success("QR code successfully scanned!");
     } catch (error) {
