@@ -39,9 +39,10 @@ const QRScanner = () => {
         
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          // Apply image smoothing for better quality
+          // Apply image smoothing and sharpening
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
+          ctx.filter = 'contrast(1.2) brightness(1.1)';
           ctx.drawImage(img, 0, 0, width, height);
         }
         
@@ -59,21 +60,36 @@ const QRScanner = () => {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      toast.error("Please select a file to scan");
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please select a valid image file");
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const processedFile = await enhanceImageQuality(file);
       const html5QrCode = new Html5Qrcode("reader");
       
       const decodedText = await html5QrCode.scanFile(processedFile, /* showImage= */ true);
-      setScanResult(decodedText);
-      toast.success("QR code successfully scanned!");
+      if (decodedText) {
+        setScanResult(decodedText);
+        toast.success("QR code successfully scanned!");
+      } else {
+        toast.error("No QR code found in the image");
+      }
       await html5QrCode.clear();
     } catch (error) {
       console.error(error);
       if (error instanceof Error) {
         if (error.message.includes("No MultiFormat Readers")) {
           toast.error("Could not detect a valid QR code. Please try a clearer image.");
+        } else if (error.message.includes("No QR code found")) {
+          toast.error("No QR code found in the image. Please try another image.");
         } else {
           toast.error(`Failed to scan QR code: ${error.message}`);
         }
@@ -91,19 +107,42 @@ const QRScanner = () => {
       toast.error("Please enter a valid URL");
       return;
     }
+
+    if (!url.match(/^https?:\/\/.+\/.+$/)) {
+      toast.error("Please enter a valid image URL");
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.startsWith('image/')) {
+        throw new Error('URL does not point to a valid image');
+      }
+
       const blob = await response.blob();
       const file = new File([blob], "qr-from-url.png", { type: blob.type });
       const html5QrCode = new Html5Qrcode("reader");
       const decodedText = await html5QrCode.scanFile(file, /* showImage= */ true);
-      setScanResult(decodedText);
-      toast.success("QR code successfully scanned from URL!");
+      
+      if (decodedText) {
+        setScanResult(decodedText);
+        toast.success("QR code successfully scanned from URL!");
+      } else {
+        toast.error("No QR code found in the image from URL");
+      }
       await html5QrCode.clear();
     } catch (error) {
       console.error(error);
-      toast.error("Failed to scan QR code from the URL.");
+      if (error instanceof Error) {
+        toast.error(`Failed to scan QR code: ${error.message}`);
+      } else {
+        toast.error("Failed to scan QR code from the URL.");
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -120,7 +159,9 @@ const QRScanner = () => {
           setActiveScanner(false);
         },
         (errorMessage: string) => {
-          console.warn("QR Code scan failed: ", errorMessage);
+          if (!errorMessage.includes("No QR code found")) {
+            console.warn("QR Code scan failed: ", errorMessage);
+          }
         }
       );
     }
@@ -144,6 +185,7 @@ const QRScanner = () => {
         ],
         aspectRatio: 1.0,
         showTorchButtonIfSupported: true,
+        supportedScanTypes: ["camera"]
       },
       false
     );
