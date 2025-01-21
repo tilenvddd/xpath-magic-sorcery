@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Html5QrcodeScanner, Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
-import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -11,25 +10,59 @@ const QRScanner = () => {
   const [scanner, setScanner] = useState<Html5QrcodeScanner | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const enhanceImageQuality = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsProcessing(true);
+    try {
+      const processedImage = await enhanceImageQuality(file);
+      const html5QrCode = new Html5Qrcode("reader");
+      const decodedText = await html5QrCode.decodeFile(processedImage);
+      setScanResult(decodedText);
+      toast.success("QR code successfully scanned!");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to scan QR code from the uploaded file.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const startScanning = () => {
+    if (scanner) {
+      scanner.render(
+        (decodedText: string) => {
+          setScanResult(decodedText);
+          toast.success("QR Code successfully scanned!");
+          scanner.clear();
+        },
+        (errorMessage: string) => {
+          console.warn("QR Code scan failed: ", errorMessage);
+        }
+      );
+    }
+  };
+
   useEffect(() => {
     const newScanner = new Html5QrcodeScanner(
       "reader",
       {
-        qrbox: {
-          width: 250,
-          height: 250,
-        },
-        fps: 30,
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true
-        },
+        qrbox: { width: 300, height: 300 },
+        fps: 15,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         rememberLastUsedCamera: true,
-        aspectRatio: undefined, // This allows the scanner to adapt to different aspect ratios
         formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
       },
       false
     );
-
     setScanner(newScanner);
 
     return () => {
@@ -39,72 +72,13 @@ const QRScanner = () => {
     };
   }, []);
 
-  const handleScanSuccess = (decodedText: string) => {
-    setScanResult(decodedText);
-    if (scanner) {
-      scanner.clear();
-    }
-    toast.success("QR Code scanned successfully!");
-    setIsProcessing(false);
-  };
-
-  const handleScanError = (err: string) => {
-    console.warn(err);
-    setIsProcessing(false);
-  };
-
-  const startScanning = () => {
-    if (scanner) {
-      scanner.render(handleScanSuccess, handleScanError);
-    }
-  };
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setIsProcessing(true);
-      const html5QrCode = new Html5Qrcode("reader");
-      
-      if (file.type === 'application/pdf') {
-        toast.error("PDF scanning is currently not supported directly. Please convert the PDF to an image first or take a screenshot of the QR code.");
-        setIsProcessing(false);
-        return;
-      }
-
-      const imageUrl = URL.createObjectURL(file);
-      
-      try {
-        const decodedText = await html5QrCode.scanFile(file, true);
-        handleScanSuccess(decodedText);
-      } catch (error) {
-        if (error instanceof Error) {
-          if (error.message.includes("No MultiFormat Readers")) {
-            toast.error("Unable to detect QR code. Try these tips:\n- Ensure image is well-lit and in focus\n- QR code should be clearly visible\n- Try a higher resolution image");
-          } else {
-            toast.error("Failed to process the file. Please try a different image with a clearer QR code.");
-          }
-          console.log("Scanning error:", error.message);
-        }
-        handleScanError(error as string);
-      } finally {
-        URL.revokeObjectURL(imageUrl);
-        await html5QrCode.clear();
-      }
-    } catch (error) {
-      toast.error("Error processing the file. Please try again with a different file.");
-      setIsProcessing(false);
-    }
-  };
-
   return (
     <div className="container mx-auto p-4">
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
           <CardTitle>QR Code Scanner</CardTitle>
           <CardDescription>
-            Upload an invoice/document or scan a QR code to analyze its contents
+            Upload an invoice/document or scan a QR code to analyze its contents.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -117,7 +91,9 @@ const QRScanner = () => {
                       <p className="mb-2 text-sm text-gray-500">
                         <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
-                      <p className="text-xs text-gray-500">High-quality PNG, JPG, JPEG or PDF files supported</p>
+                      <p className="text-xs text-gray-500">
+                        High-quality PNG, JPG, JPEG, or PDF files supported
+                      </p>
                     </div>
                     <Input
                       id="file-upload"
@@ -156,7 +132,7 @@ const QRScanner = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-lg break-all">{scanResult}</p>
-                  <Button 
+                  <Button
                     className="mt-4"
                     onClick={() => {
                       setScanResult(null);
