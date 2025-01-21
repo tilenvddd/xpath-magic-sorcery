@@ -92,6 +92,23 @@ const QRScanner = () => {
     }
   };
 
+  const openUrl = () => {
+    if (scanResult && isValidUrl(scanResult)) {
+      window.open(scanResult, '_blank', 'noopener,noreferrer');
+    } else {
+      toast.error("The scanned content is not a valid URL");
+    }
+  };
+
+  const isValidUrl = (string: string) => {
+    try {
+      new URL(string);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
+
   return (
     <div className="container mx-auto p-4">
       <Card className="max-w-3xl mx-auto">
@@ -150,15 +167,24 @@ const QRScanner = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-lg break-all">{scanResult}</p>
-                  <Button 
-                    className="mt-4"
-                    onClick={() => {
-                      setScanResult(null);
-                      startScanning();
-                    }}
-                  >
-                    Scan Another Code
-                  </Button>
+                  <div className="flex gap-4 mt-4">
+                    <Button 
+                      onClick={() => {
+                        setScanResult(null);
+                        startScanning();
+                      }}
+                    >
+                      Scan Another Code
+                    </Button>
+                    {isValidUrl(scanResult) && (
+                      <Button
+                        variant="secondary"
+                        onClick={openUrl}
+                      >
+                        Open URL
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}
