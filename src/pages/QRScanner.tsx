@@ -19,7 +19,11 @@ const QRScanner = () => {
           width: 250,
           height: 250,
         },
-        fps: 5,
+        fps: 10, // Increased FPS for better detection
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        },
+        rememberLastUsedCamera: true,
       },
       false
     );
@@ -67,10 +71,13 @@ const QRScanner = () => {
         const decodedText = await html5QrCode.scanFile(file, true);
         handleScanSuccess(decodedText);
       } catch (error) {
-        if (error instanceof Error && error.message.includes("No MultiFormat Readers")) {
-          toast.error("The file format is not supported or no QR code was detected. Please try a different file or ensure the QR code is clearly visible.");
-        } else {
-          toast.error("No QR code found in the document. Please try another file.");
+        if (error instanceof Error) {
+          if (error.message.includes("No MultiFormat Readers")) {
+            toast.error("Unable to detect QR code. Please ensure the image is clear and contains a valid QR code.");
+          } else {
+            toast.error("Failed to process the file. Please try a different image with a clearer QR code.");
+          }
+          console.log("Scanning error:", error.message);
         }
         handleScanError(error as string);
       } finally {
@@ -78,7 +85,7 @@ const QRScanner = () => {
         await html5QrCode.clear();
       }
     } catch (error) {
-      toast.error("Error processing the file. Please try again.");
+      toast.error("Error processing the file. Please try again with a different file.");
       setIsProcessing(false);
     }
   };
@@ -102,7 +109,7 @@ const QRScanner = () => {
                       <p className="mb-2 text-sm text-gray-500">
                         <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
-                      <p className="text-xs text-gray-500">PDF, PNG, JPG or JPEG</p>
+                      <p className="text-xs text-gray-500">PDF, PNG, JPG or JPEG (high quality recommended)</p>
                     </div>
                     <Input
                       id="file-upload"
