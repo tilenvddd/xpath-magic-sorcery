@@ -1,9 +1,10 @@
-import { getDocument, PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
+import { getDocument } from 'pdfjs-dist';
 
 // Initialize PDF.js worker
-const pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.entry');
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.entry';
+
 if (typeof window !== 'undefined') {
-  const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 }
 
