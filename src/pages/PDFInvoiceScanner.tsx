@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { Html5QrcodeScanner, Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
-import { useEffect } from "react";
+import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -8,45 +7,13 @@ import { Input } from "@/components/ui/input";
 import { preprocessImage } from "@/utils/imageProcessing";
 import { Link } from "react-router-dom";
 
-const QRScanner = () => {
+const PDFInvoiceScanner = () => {
   const [scanResult, setScanResult] = useState<string | null>(null);
-  const [scanner, setScanner] = useState<Html5QrcodeScanner | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-
-  useEffect(() => {
-    const newScanner = new Html5QrcodeScanner(
-      "reader",
-      {
-        qrbox: {
-          width: 250,
-          height: 250,
-        },
-        fps: 15,
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true
-        },
-        rememberLastUsedCamera: true,
-        aspectRatio: 1.0,
-        formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ],
-      },
-      false
-    );
-
-    setScanner(newScanner);
-
-    return () => {
-      if (newScanner) {
-        newScanner.clear().catch(console.error);
-      }
-    };
-  }, []);
 
   const handleScanSuccess = (decodedText: string) => {
     setScanResult(decodedText);
-    if (scanner) {
-      scanner.clear();
-    }
-    toast.success("QR Code scanned successfully!");
+    toast.success("Invoice QR code scanned successfully!");
     setIsProcessing(false);
   };
 
@@ -55,31 +22,30 @@ const QRScanner = () => {
     setIsProcessing(false);
   };
 
-  const startScanning = () => {
-    if (scanner) {
-      scanner.render(handleScanSuccess, handleScanError);
-    }
-  };
-
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Check if the file is a PDF
+    if (file.type !== 'application/pdf') {
+      toast.error("Please upload a PDF invoice document");
+      return;
+    }
 
     try {
       setIsProcessing(true);
       const html5QrCode = new Html5Qrcode("reader");
       
       try {
-        // Preprocess the image before scanning
         const processedFile = await preprocessImage(file);
         const decodedText = await html5QrCode.scanFile(processedFile, /* verbose= */ true);
         handleScanSuccess(decodedText);
       } catch (error) {
         if (error instanceof Error) {
           if (error.message.includes("No MultiFormat Readers")) {
-            toast.error("Unable to detect QR code. Try these tips:\n- Ensure image is well-lit and in focus\n- QR code should be clearly visible\n- Try a higher resolution image");
+            toast.error("Unable to detect QR code in the invoice. Try these tips:\n- Ensure PDF is high quality\n- QR code should be clearly visible\n- Try converting PDF to image first");
           } else {
-            toast.error("Failed to process the file. Please try a different image with a clearer QR code.");
+            toast.error("Failed to process the invoice. Please try a different PDF with a clearer QR code.");
           }
           console.log("Scanning error:", error.message);
         }
@@ -88,7 +54,7 @@ const QRScanner = () => {
         await html5QrCode.clear();
       }
     } catch (error) {
-      toast.error("Error processing the file. Please try again with a different file.");
+      toast.error("Error processing the PDF. Please try again with a different file.");
       setIsProcessing(false);
     }
   };
@@ -97,9 +63,9 @@ const QRScanner = () => {
     <div className="container mx-auto p-4">
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
-          <CardTitle>QR Code Scanner</CardTitle>
+          <CardTitle>PDF Invoice QR Scanner</CardTitle>
           <CardDescription>
-            Upload an image or scan a QR code to analyze its contents
+            Upload a PDF invoice document to scan its QR code
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -112,27 +78,18 @@ const QRScanner = () => {
                       <p className="mb-2 text-sm text-gray-500">
                         <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
-                      <p className="text-xs text-gray-500">High-quality PNG, JPG or JPEG recommended for best results</p>
+                      <p className="text-xs text-gray-500">PDF invoices only</p>
                     </div>
                     <Input
                       id="file-upload"
                       type="file"
                       className="hidden"
-                      accept=".png,.jpg,.jpeg"
+                      accept=".pdf"
                       onChange={handleFileUpload}
                       disabled={isProcessing}
                     />
                   </div>
                 </label>
-              </div>
-              
-              <div className="text-center">
-                <p className="text-sm text-gray-500 mb-4">- OR -</p>
-                {!scanResult && !isProcessing && (
-                  <Button onClick={startScanning}>
-                    Start Camera Scanning
-                  </Button>
-                )}
               </div>
             </div>
 
@@ -140,7 +97,7 @@ const QRScanner = () => {
             
             {isProcessing && (
               <div className="text-center">
-                <p>Processing document...</p>
+                <p>Processing invoice...</p>
               </div>
             )}
 
@@ -153,21 +110,18 @@ const QRScanner = () => {
                   <p className="text-lg break-all">{scanResult}</p>
                   <Button 
                     className="mt-4"
-                    onClick={() => {
-                      setScanResult(null);
-                      startScanning();
-                    }}
+                    onClick={() => setScanResult(null)}
                   >
-                    Scan Another Code
+                    Scan Another Invoice
                   </Button>
                 </CardContent>
               </Card>
             )}
 
             <div className="text-center mt-4">
-              <Link to="/pdf-invoice-scanner">
+              <Link to="/qr-scanner">
                 <Button variant="outline">
-                  Switch to PDF Invoice Scanner
+                  Switch to General QR Scanner
                 </Button>
               </Link>
             </div>
@@ -178,4 +132,4 @@ const QRScanner = () => {
   );
 };
 
-export default QRScanner;
+export default PDFInvoiceScanner;
