@@ -1,8 +1,8 @@
-import { PDFDocument } from 'pdf-lib';
-import { GlobalWorkerOptions } from 'pdfjs-dist';
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 
 // Initialize PDF.js worker
 if (typeof window !== 'undefined') {
+  // We need to import the worker as a URL, not as a module
   const pdfjsWorker = new URL(
     'pdfjs-dist/build/pdf.worker.mjs',
     import.meta.url
@@ -13,31 +13,25 @@ if (typeof window !== 'undefined') {
 
 async function convertPDFToImage(file: File): Promise<File> {
   const arrayBuffer = await file.arrayBuffer();
-  const pdfDoc = await PDFDocument.load(arrayBuffer);
-  const pages = pdfDoc.getPages();
-  const firstPage = pages[0];
+  const pdf = await getDocument({ data: arrayBuffer }).promise;
+  const page = await pdf.getPage(1); // Get first page
   
-  // Create a canvas with higher resolution
+  const viewport = page.getViewport({ scale: 2.0 }); // Scale up for better quality
   const canvas = document.createElement('canvas');
-  const scale = 2.0; // Increase scale for better quality
-  const viewport = {
-    width: firstPage.getWidth() * scale,
-    height: firstPage.getHeight() * scale
-  };
-  
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
   const ctx = canvas.getContext('2d');
   
   if (!ctx) {
     throw new Error('Could not get canvas context');
   }
   
-  // Draw PDF page to canvas with higher quality settings
-  ctx.fillStyle = 'white';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
   
-  // Convert PDF page to PNG
+  await page.render({
+    canvasContext: ctx,
+    viewport: viewport
+  }).promise;
+  
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (!blob) {
@@ -49,7 +43,7 @@ async function convertPDFToImage(file: File): Promise<File> {
         lastModified: Date.now(),
       });
       resolve(imageFile);
-    }, 'image/png', 1.0); // Use maximum quality
+    }, 'image/png');
   });
 }
 
@@ -70,9 +64,9 @@ export const preprocessImage = async (file: File): Promise<File> => {
     }
 
     img.onload = () => {
-      // Set higher maximum dimensions for better quality
-      const MAX_WIDTH = 2048;
-      const MAX_HEIGHT = 2048;
+      // Set reasonable maximum dimensions
+      const MAX_WIDTH = 1024;
+      const MAX_HEIGHT = 1024;
 
       let width = img.width;
       let height = img.height;
@@ -94,25 +88,11 @@ export const preprocessImage = async (file: File): Promise<File> => {
       canvas.width = width;
       canvas.height = height;
 
-      // Enhanced image processing for better QR detection
-      ctx.filter = 'contrast(1.4) brightness(1.2)';
+      // Apply image processing
+      ctx.filter = 'contrast(1.2) brightness(1.1) grayscale(1)';
       ctx.drawImage(img, 0, 0, width, height);
 
-      // Apply additional processing for better QR detection
-      const imageData = ctx.getImageData(0, 0, width, height);
-      const data = imageData.data;
-      
-      // Apply adaptive thresholding
-      for (let i = 0; i < data.length; i += 4) {
-        const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        const threshold = 128;
-        const value = avg > threshold ? 255 : 0;
-        data[i] = data[i + 1] = data[i + 2] = value;
-      }
-      
-      ctx.putImageData(imageData, 0, 0);
-
-      // Convert canvas to blob with high quality
+      // Convert canvas to blob
       canvas.toBlob((blob) => {
         if (!blob) {
           reject(new Error('Could not create blob from canvas'));
@@ -120,11 +100,11 @@ export const preprocessImage = async (file: File): Promise<File> => {
         }
         // Create a new file from the blob
         const processedFile = new File([blob], file.name, {
-          type: 'image/png',
+          type: 'image/jpeg',
           lastModified: Date.now(),
         });
         resolve(processedFile);
-      }, 'image/png', 1.0); // Use maximum quality
+      }, 'image/jpeg', 0.9);
     };
 
     img.onerror = () => reject(new Error('Failed to load image'));
