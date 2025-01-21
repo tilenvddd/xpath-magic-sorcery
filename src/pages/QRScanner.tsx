@@ -68,7 +68,15 @@ const QRScanner = () => {
       const html5QrCode = new Html5Qrcode("reader");
       
       try {
-        const decodedText = await html5QrCode.scanFile(file, /* verbose= */ true);
+        const config = {
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          },
+          formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ],
+          qrbox: undefined // This allows the scanner to analyze the entire image
+        };
+
+        const decodedText = await html5QrCode.scanFile(file, /* verbose= */ true, config);
         handleScanSuccess(decodedText);
       } catch (error) {
         if (error instanceof Error) {
