@@ -1,15 +1,18 @@
 import { useState, useEffect } from "react";
 import { Html5QrcodeScanner, Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Camera, Upload, Link } from "lucide-react";
 
 const QRScanner = () => {
   const [scanResult, setScanResult] = useState<string | null>(null);
   const [scanner, setScanner] = useState<Html5QrcodeScanner | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [url, setUrl] = useState("");
+  const [activeScanner, setActiveScanner] = useState(false);
 
   const enhanceImageQuality = async (file: File): Promise<File> => {
     return new Promise((resolve) => {
@@ -107,12 +110,14 @@ const QRScanner = () => {
   };
 
   const startScanning = () => {
+    setActiveScanner(true);
     if (scanner) {
       scanner.render(
         (decodedText: string) => {
           setScanResult(decodedText);
           toast.success("QR Code successfully scanned!");
           scanner.clear();
+          setActiveScanner(false);
         },
         (errorMessage: string) => {
           console.warn("QR Code scan failed: ", errorMessage);
@@ -152,27 +157,47 @@ const QRScanner = () => {
   }, []);
 
   return (
-    <div className="container mx-auto p-4">
-      <Card className="max-w-3xl mx-auto">
-        <CardHeader>
-          <CardTitle>QR Code Scanner</CardTitle>
-          <CardDescription>
-            Upload an invoice/document or scan a QR code to analyze its contents.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex flex-col gap-4">
-              {/* File Upload Box */}
-              <div className="flex items-center justify-center w-full">
+    <div className="container mx-auto p-4 max-w-2xl">
+      <Card>
+        <CardContent className="p-6">
+          <Tabs defaultValue="camera" className="w-full">
+            <TabsList className="grid w-full grid-cols-3 mb-6">
+              <TabsTrigger value="camera" className="flex items-center gap-2">
+                <Camera className="w-4 h-4" />
+                Camera
+              </TabsTrigger>
+              <TabsTrigger value="file" className="flex items-center gap-2">
+                <Upload className="w-4 h-4" />
+                File Upload
+              </TabsTrigger>
+              <TabsTrigger value="url" className="flex items-center gap-2">
+                <Link className="w-4 h-4" />
+                URL
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="camera" className="mt-0">
+              {!scanResult && !activeScanner && (
+                <div className="text-center mb-4">
+                  <Button onClick={startScanning} className="w-full">
+                    Start Camera Scanning
+                  </Button>
+                </div>
+              )}
+              <div id="reader" className="w-full aspect-square max-w-xl mx-auto rounded-lg overflow-hidden"></div>
+            </TabsContent>
+
+            <TabsContent value="file" className="mt-0">
+              <div className="flex flex-col gap-4">
                 <label htmlFor="file-upload" className="w-full">
-                  <div className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                  <div className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500">
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <p className="mb-2 text-sm text-gray-500">
+                      <Upload className="w-10 h-10 mb-3 text-gray-400" />
+                      <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
                         <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
-                      <p className="text-xs text-gray-500">
-                        High-quality PNG, JPG, JPEG, or PDF files supported
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        PNG, JPG, JPEG, or PDF files supported
                       </p>
                     </div>
                     <Input
@@ -186,64 +211,47 @@ const QRScanner = () => {
                   </div>
                 </label>
               </div>
+            </TabsContent>
 
-              {/* URL Input Box */}
-              <div className="flex flex-col gap-2">
-                <p className="text-sm text-gray-500 text-center">- OR -</p>
-                <form onSubmit={handleUrlSubmit} className="flex gap-2">
-                  <Input
-                    type="url"
-                    placeholder="Enter image URL"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    className="flex-1"
-                    disabled={isProcessing}
-                  />
-                  <Button type="submit" disabled={isProcessing || !url}>
-                    Scan URL
-                  </Button>
-                </form>
-              </div>
-              
-              <div className="text-center">
-                <p className="text-sm text-gray-500 mb-4">- OR -</p>
-                {!scanResult && !isProcessing && (
-                  <Button onClick={startScanning}>
-                    Start Camera Scanning
-                  </Button>
-                )}
-              </div>
+            <TabsContent value="url" className="mt-0">
+              <form onSubmit={handleUrlSubmit} className="flex flex-col gap-4">
+                <Input
+                  type="url"
+                  placeholder="Enter image URL containing QR code"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  className="flex-1"
+                  disabled={isProcessing}
+                />
+                <Button type="submit" disabled={isProcessing || !url} className="w-full">
+                  Scan QR Code from URL
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
+
+          {isProcessing && (
+            <div className="text-center mt-4">
+              <p className="text-gray-500">Processing document...</p>
             </div>
+          )}
 
-            <div id="reader" className="w-full max-w-xl mx-auto min-h-[300px]"></div>
-            
-            {isProcessing && (
-              <div className="text-center">
-                <p>Processing document...</p>
-              </div>
-            )}
-
-            {scanResult && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Scan Result</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-lg break-all">{scanResult}</p>
-                  <Button
-                    className="mt-4"
-                    onClick={() => {
-                      setScanResult(null);
-                      setUrl("");
-                      startScanning();
-                    }}
-                  >
-                    Scan Another Code
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          {scanResult && (
+            <div className="mt-6 p-4 border rounded-lg bg-gray-50">
+              <h3 className="font-semibold mb-2">Scan Result:</h3>
+              <p className="break-all text-gray-700">{scanResult}</p>
+              <Button
+                className="mt-4 w-full"
+                onClick={() => {
+                  setScanResult(null);
+                  setUrl("");
+                  setActiveScanner(false);
+                }}
+              >
+                Scan Another Code
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
