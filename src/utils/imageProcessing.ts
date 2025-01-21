@@ -87,7 +87,7 @@ export const preprocessImage = async (file: File): Promise<File> => {
       canvas.width = width;
       canvas.height = height;
 
-      // Simple, effective image processing for QR codes
+      // Simple image processing for QR codes
       ctx.filter = 'contrast(1.2) brightness(1.1)';
       ctx.drawImage(img, 0, 0, width, height);
 
