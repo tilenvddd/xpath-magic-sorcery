@@ -25,7 +25,7 @@ const QRScanner = () => {
         },
         rememberLastUsedCamera: true,
         aspectRatio: undefined, // This allows the scanner to adapt to different aspect ratios
-        formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ],
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
       },
       false
     );
