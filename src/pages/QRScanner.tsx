@@ -67,6 +67,12 @@ const QRScanner = () => {
       setIsProcessing(true);
       const html5QrCode = new Html5Qrcode("reader");
       
+      if (file.type === 'application/pdf') {
+        toast.error("PDF scanning is currently not supported directly. Please convert the PDF to an image first or take a screenshot of the QR code.");
+        setIsProcessing(false);
+        return;
+      }
+
       const imageUrl = URL.createObjectURL(file);
       
       try {
@@ -111,13 +117,13 @@ const QRScanner = () => {
                       <p className="mb-2 text-sm text-gray-500">
                         <span className="font-semibold">Click to upload</span> or drag and drop
                       </p>
-                      <p className="text-xs text-gray-500">High-quality PNG, JPG or JPEG recommended for best results</p>
+                      <p className="text-xs text-gray-500">High-quality PNG, JPG, JPEG or PDF files supported</p>
                     </div>
                     <Input
                       id="file-upload"
                       type="file"
                       className="hidden"
-                      accept=".png,.jpg,.jpeg"
+                      accept=".png,.jpg,.jpeg,.pdf"
                       onChange={handleFileUpload}
                       disabled={isProcessing}
                     />
