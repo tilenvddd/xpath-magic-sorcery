@@ -28,6 +28,17 @@ export const preprocessImage = async (file: File): Promise<File> => {
           height = ROI.height;
         }
       }
+      const ROIs = [
+  { x: 0, y: 0, width: 500, height: 500 },   // Top-left section
+  { x: 500, y: 0, width: 500, height: 500 }, // Top-right section
+  { x: 0, y: 500, width: 500, height: 500 }, // Bottom-left section
+  { x: 500, y: 500, width: 500, height: 500 } // Bottom-right section
+];
+
+ROIs.forEach(roi => {
+  // Apply similar logic per ROI, resizing and processing images accordingly
+});
+
 
       // Set canvas dimensions
       canvas.width = width;
