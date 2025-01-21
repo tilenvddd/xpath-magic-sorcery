@@ -45,7 +45,7 @@ const QRScanner = () => {
   const handleScanSuccess = (decodedText: string) => {
     setScanResult(decodedText);
     if (scanner) {
-      scanner.clear();
+      scanner.clear().catch(console.error);
     }
     toast.success("QR Code scanned successfully!");
     setIsProcessing(false);
@@ -57,7 +57,8 @@ const QRScanner = () => {
   };
 
   const startScanning = () => {
-    if (scanner && !scanResult) {
+    if (scanner) {
+      setScanResult(null);
       scanner.render(handleScanSuccess, handleScanError);
     }
   };
