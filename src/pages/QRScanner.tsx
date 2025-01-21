@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Html5QrcodeScanner, Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import { Html5QrcodeScanner, Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScanType } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -185,7 +185,7 @@ const QRScanner = () => {
         ],
         aspectRatio: 1.0,
         showTorchButtonIfSupported: true,
-        supportedScanTypes: ["camera"]
+        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
       },
       false
     );
