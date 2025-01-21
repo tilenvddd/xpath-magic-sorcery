@@ -48,7 +48,7 @@ const PDFInvoiceScanner = () => {
         const viewport = page.getViewport({ scale });
         
         const canvas = document.createElement('canvas');
-        container.appendChild(canvas); // Attach canvas to container
+        container.appendChild(canvas);
         
         const context = canvas.getContext('2d', { 
           alpha: false,
@@ -73,33 +73,21 @@ const PDFInvoiceScanner = () => {
         };
         
         await page.render(renderContext).promise;
-        
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-        
-        for (let i = 0; i < data.length; i += 4) {
-          const luminance = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-          const threshold = 160;
-          const gamma = 1.5;
-          
-          const normalizedLuminance = Math.pow(luminance / 255, gamma) * 255;
-          const newValue = normalizedLuminance > threshold ? 255 : 0;
-          
-          const edgeDetection = Math.abs(luminance - threshold) < 20;
-          const finalValue = edgeDetection ? (luminance > threshold ? 255 : 0) : newValue;
-          
-          data[i] = finalValue;
-          data[i + 1] = finalValue;
-          data[i + 2] = finalValue;
-          data[i + 3] = 255;
-        }
-        
-        context.putImageData(imageData, 0, 0);
+
+        // Convert canvas to blob before scanning
+        const blob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((b) => {
+            if (b) resolve(b);
+          }, 'image/jpeg', 1.0);
+        });
+
+        // Create a File object from the blob
+        const canvasFile = new File([blob], 'page.jpg', { type: 'image/jpeg' });
 
         // Try to detect QR code
         const html5QrCode = new Html5Qrcode("reader");
         try {
-          const qrCodeMessage = await html5QrCode.scanFile(canvas, true);
+          const qrCodeMessage = await html5QrCode.scanFile(canvasFile, true);
           if (qrCodeMessage) {
             return canvas; // Return if QR code found
           }
@@ -108,12 +96,12 @@ const PDFInvoiceScanner = () => {
           await html5QrCode.clear();
         }
         
-        container.removeChild(canvas); // Clean up current canvas
+        container.removeChild(canvas);
       }
       
       throw new Error("No QR code found in any page");
     } finally {
-      document.body.removeChild(container); // Clean up container
+      document.body.removeChild(container);
     }
   };
 
