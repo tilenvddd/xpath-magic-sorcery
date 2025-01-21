@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { preprocessImage } from "@/utils/imageProcessing";
-
+import { Link } from "react-router-dom";
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Initialize PDF.js worker
@@ -32,59 +32,81 @@ const PDFInvoiceScanner = () => {
   const convertPDFToImage = async (file: File): Promise<HTMLCanvasElement> => {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-    // Assume we are only processing one page
-    const page = await pdf.getPage(1);  // Get the first page
+    const page = await pdf.getPage(1); // Get first page
+    
+    // Increase scale for even better quality (8.0 provides extremely high resolution)
     const scale = 8.0;
     const viewport = page.getViewport({ scale });
-
-    // Create a hidden container for the canvas
-    const container = document.createElement('div');
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
-
-    const canvas = document.createElement('canvas');
-    container.appendChild(canvas);
     
-    const context = canvas.getContext('2d');
+    // Create a canvas with the desired dimensions
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d', { 
+      alpha: false,
+      willReadFrequently: true,
+      desynchronized: true // Optimize rendering performance
+    });
+    
     if (!context) {
-      console.error('Canvas context creation failed');
-      return null!;
+      throw new Error('Could not get canvas context');
     }
-
-    canvas.width = viewport.width;
+    
+    // Disable image smoothing for sharper edges
+    context.imageSmoothingEnabled = false;
+    
+    // Set canvas dimensions
     canvas.height = viewport.height;
-
+    canvas.width = viewport.width;
+    
+    // Enhanced rendering parameters
     const renderContext = {
       canvasContext: context,
       viewport: viewport,
       renderInteractiveForms: false,
+      enableWebGL: true,
+      background: 'white' // Ensure white background for better contrast
     };
-
-    // Render the page into the canvas
+    
+    // Render the PDF page
     await page.render(renderContext).promise;
-
-    // Convert canvas to blob before scanning
-    const blob = await new Promise<Blob>((resolve) => {
-      canvas.toBlob((b) => {
-        if (b) resolve(b);
-      }, 'image/jpeg', 1.0);
-    });
-
-    // Create a File object from the blob
-    const canvasFile = new File([blob], 'page.jpg', { type: 'image/jpeg' });
-
-    document.body.removeChild(container);  // Clean up
-
-    return canvasFile;  // Return the canvas file for further scanning
+    
+    // Enhanced image processing
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    
+    // Apply advanced image processing
+    for (let i = 0; i < data.length; i += 4) {
+      // Calculate luminance with proper color weights
+      const luminance = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+      
+      // Apply adaptive thresholding
+      const threshold = 160; // Increased threshold for better separation
+      const gamma = 1.5; // Gamma correction factor
+      
+      // Apply gamma correction and thresholding
+      const normalizedLuminance = Math.pow(luminance / 255, gamma) * 255;
+      const newValue = normalizedLuminance > threshold ? 255 : 0;
+      
+      // Sharpen edges by increasing contrast in transition areas
+      const edgeDetection = Math.abs(luminance - threshold) < 20;
+      const finalValue = edgeDetection ? (luminance > threshold ? 255 : 0) : newValue;
+      
+      // Apply the processed values
+      data[i] = finalValue;     // Red
+      data[i + 1] = finalValue; // Green
+      data[i + 2] = finalValue; // Blue
+      data[i + 3] = 255;        // Alpha (fully opaque)
+    }
+    
+    // Apply the processed image data back to the canvas
+    context.putImageData(imageData, 0, 0);
+    
+    return canvas;
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Check if uploaded file is a PDF
     if (file.type !== 'application/pdf') {
       toast.error("Please upload a PDF invoice document");
       return;
@@ -95,31 +117,48 @@ const PDFInvoiceScanner = () => {
       const html5QrCode = new Html5Qrcode("reader");
       
       try {
-        // Convert the PDF to an image (only one page)
-        const canvasFile = await convertPDFToImage(file);
+        // Convert PDF to image
+        const canvas = await convertPDFToImage(file);
+        const imageBlob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+          }, 'image/jpeg', 1.0);
+        });
         
-        if (!canvasFile) {
-          throw new Error("Error converting PDF to image");
-        }
-
-        // Convert Blob to file, preprocess it
-        const processedFile = await preprocessImage(canvasFile);
+        const imageFile = new File([imageBlob], 'pdf-page.jpg', { type: 'image/jpeg' });
+        const processedFile = await preprocessImage(imageFile);
         
-        // Scan for QR code
-        const qrCodeMessage = await html5QrCode.scanFile(processedFile, true);
-
-        if (qrCodeMessage && qrCodeMessage.length > 0) {
+        const qrCodeMessage = await html5QrCode.scanFile(processedFile, /* verbose= */ true);
+        
+        if (qrCodeMessage.length > 0) {
           handleScanSuccess(qrCodeMessage);
         } else {
-          toast.error("No QR code found in the PDF. Please ensure the invoice contains a QR code and try again.");
+          toast.error("No QR code found in the PDF. Please ensure your invoice contains a clear, readable QR code and try again.", {
+            duration: 5000
+          });
         }
       } catch (error) {
-        console.error("Error during processing:", error);
-        toast.error("Failed to process the PDF. Ensure it’s not corrupted, encrypted, or too large.");
+        if (error instanceof Error) {
+          if (error.message.includes("No MultiFormat Readers")) {
+            toast.error("No QR code detected in the invoice. Please check that:", {
+              duration: 6000,
+              description: "1. The PDF contains a QR code\n2. The QR code is clearly visible\n3. The PDF quality is good\n4. Try zooming the PDF before saving it"
+            });
+          } else {
+            toast.error("Failed to process the PDF. Please try a different file with a clearer QR code.", {
+              duration: 5000
+            });
+          }
+          console.log("Scanning error:", error.message);
+        }
         handleScanError(error as string);
+      } finally {
+        await html5QrCode.clear();
       }
     } catch (error) {
-      toast.error("Error processing the PDF. Please try again with a different file.");
+      toast.error("Error processing the PDF. Please try again with a different file.", {
+        duration: 5000
+      });
       setIsProcessing(false);
     }
   };
@@ -129,7 +168,9 @@ const PDFInvoiceScanner = () => {
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
           <CardTitle>PDF Invoice QR Scanner</CardTitle>
-          <CardDescription>Upload a PDF invoice document to scan its QR code</CardDescription>
+          <CardDescription>
+            Upload a PDF invoice document to scan its QR code
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -156,6 +197,8 @@ const PDFInvoiceScanner = () => {
               </div>
             </div>
 
+            <div id="reader" className="w-full max-w-xl mx-auto"></div>
+            
             {isProcessing && (
               <div className="text-center">
                 <p>Processing invoice...</p>
@@ -178,6 +221,14 @@ const PDFInvoiceScanner = () => {
                 </CardContent>
               </Card>
             )}
+
+            <div className="text-center mt-4">
+              <Link to="/qr-scanner">
+                <Button variant="outline">
+                  Switch to General QR Scanner
+                </Button>
+              </Link>
+            </div>
           </div>
         </CardContent>
       </Card>
