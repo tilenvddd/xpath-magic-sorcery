@@ -67,10 +67,8 @@ const QRScanner = () => {
       setIsProcessing(true);
       const html5QrCode = new Html5Qrcode("reader");
       
-      const imageUrl = URL.createObjectURL(file);
-      
       try {
-        const decodedText = await html5QrCode.scanFile(file, true);
+        const decodedText = await html5QrCode.scanFile(file, /* verbose= */ true);
         handleScanSuccess(decodedText);
       } catch (error) {
         if (error instanceof Error) {
@@ -83,7 +81,6 @@ const QRScanner = () => {
         }
         handleScanError(error as string);
       } finally {
-        URL.revokeObjectURL(imageUrl);
         await html5QrCode.clear();
       }
     } catch (error) {
