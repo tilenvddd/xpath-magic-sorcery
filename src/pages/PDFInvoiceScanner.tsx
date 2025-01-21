@@ -83,14 +83,21 @@ const PDFInvoiceScanner = () => {
         if (qrCodeMessage.length > 0) {
           handleScanSuccess(qrCodeMessage);
         } else {
-          toast.error("No valid QR code found in the PDF");
+          toast.error("No QR code found in the PDF. Please ensure your invoice contains a clear, readable QR code and try again.", {
+            duration: 5000
+          });
         }
       } catch (error) {
         if (error instanceof Error) {
           if (error.message.includes("No MultiFormat Readers")) {
-            toast.error("No QR code found in the invoice. Please ensure the PDF has a clear QR code.");
+            toast.error("No QR code detected in the invoice. Please check that:", {
+              duration: 6000,
+              description: "1. The PDF contains a QR code\n2. The QR code is clearly visible\n3. The PDF quality is good\n4. Try zooming the PDF before saving it"
+            });
           } else {
-            toast.error("Failed to process the PDF. Please try a different file with a clearer QR code.");
+            toast.error("Failed to process the PDF. Please try a different file with a clearer QR code.", {
+              duration: 5000
+            });
           }
           console.log("Scanning error:", error.message);
         }
@@ -99,7 +106,9 @@ const PDFInvoiceScanner = () => {
         await html5QrCode.clear();
       }
     } catch (error) {
-      toast.error("Error processing the PDF. Please try again with a different file.");
+      toast.error("Error processing the PDF. Please try again with a different file.", {
+        duration: 5000
+      });
       setIsProcessing(false);
     }
   };
