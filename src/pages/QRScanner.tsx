@@ -78,9 +78,18 @@ const QRScanner = () => {
       } catch (error) {
         if (error instanceof Error) {
           if (error.message.includes("No MultiFormat Readers")) {
-            toast.error("Unable to detect QR code. Try these tips:\n- Ensure image is well-lit and in focus\n- QR code should be clearly visible\n- Try a higher resolution image");
+            toast.error("Unable to detect QR code. Please ensure:", {
+              description: [
+                "• The image is clear and well-lit",
+                "• The QR code is not damaged or blurry",
+                "• The file format is PNG, JPG, or JPEG",
+                "• The image resolution is sufficient"
+              ].join('\n')
+            });
           } else {
-            toast.error("Failed to process the file. Please try a different image with a clearer QR code.");
+            toast.error("Failed to process image", {
+              description: "Please try uploading a different image with a clearer QR code"
+            });
           }
           console.log("Scanning error:", error.message);
         }
@@ -90,7 +99,9 @@ const QRScanner = () => {
         await html5QrCode.clear();
       }
     } catch (error) {
-      toast.error("Error processing the file. Please try again with a different file.");
+      toast.error("Error processing file", {
+        description: "Please ensure the file is a valid image (PNG, JPG, or JPEG) and try again"
+      });
       setIsProcessing(false);
     }
   };
