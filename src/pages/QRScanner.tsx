@@ -11,11 +11,46 @@ const QRScanner = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [url, setUrl] = useState("");
 
-  const enhanceImageQuality = (file: File): Promise<string> => {
+  const enhanceImageQuality = async (file: File): Promise<File> => {
     return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target?.result as string);
-      reader.readAsDataURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        // Set optimal dimensions for QR scanning
+        const maxDimension = 1024;
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = (height / width) * maxDimension;
+            width = maxDimension;
+          } else {
+            width = (width / height) * maxDimension;
+            height = maxDimension;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          // Apply image smoothing for better quality
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+        }
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name, { type: 'image/png' }));
+          } else {
+            resolve(file);
+          }
+        }, 'image/png', 1.0);
+      };
+      img.src = URL.createObjectURL(file);
     });
   };
 
@@ -24,15 +59,24 @@ const QRScanner = () => {
     if (!file) return;
     setIsProcessing(true);
     try {
-      const processedImage = await enhanceImageQuality(file);
+      const processedFile = await enhanceImageQuality(file);
       const html5QrCode = new Html5Qrcode("reader");
-      const decodedText = await html5QrCode.scanFile(file, /* showImage= */ true);
+      
+      const decodedText = await html5QrCode.scanFile(processedFile, /* showImage= */ true);
       setScanResult(decodedText);
       toast.success("QR code successfully scanned!");
       await html5QrCode.clear();
     } catch (error) {
       console.error(error);
-      toast.error("Failed to scan QR code from the uploaded file.");
+      if (error instanceof Error) {
+        if (error.message.includes("No MultiFormat Readers")) {
+          toast.error("Could not detect a valid QR code. Please try a clearer image.");
+        } else {
+          toast.error(`Failed to scan QR code: ${error.message}`);
+        }
+      } else {
+        toast.error("Failed to scan QR code from the uploaded file.");
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -81,13 +125,18 @@ const QRScanner = () => {
     const newScanner = new Html5QrcodeScanner(
       "reader",
       {
-        qrbox: { width: 250, height: 250 }, // Reduced size for better accuracy
-        fps: 10, // Reduced FPS for better processing
+        qrbox: { width: 250, height: 250 },
+        fps: 10,
         experimentalFeatures: {
           useBarCodeDetectorIfSupported: true
         },
         rememberLastUsedCamera: true,
-        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE,
+          Html5QrcodeSupportedFormats.DATA_MATRIX,
+          Html5QrcodeSupportedFormats.AZTEC,
+          Html5QrcodeSupportedFormats.PDF_417
+        ],
         aspectRatio: 1.0,
         showTorchButtonIfSupported: true,
       },
