@@ -34,21 +34,53 @@ const PDFInvoiceScanner = () => {
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     const page = await pdf.getPage(1); // Get first page
     
-    const viewport = page.getViewport({ scale: 2.0 }); // Increase scale for better quality
+    // Increase scale for better quality (4.0 provides much higher resolution)
+    const scale = 4.0;
+    const viewport = page.getViewport({ scale });
+    
+    // Create a canvas with the desired dimensions
     const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext('2d', { 
+      alpha: false, // Disable alpha for better performance
+      willReadFrequently: true // Optimize for pixel manipulation
+    });
     
     if (!context) {
       throw new Error('Could not get canvas context');
     }
     
+    // Set canvas dimensions to match the scaled viewport
     canvas.height = viewport.height;
     canvas.width = viewport.width;
     
-    await page.render({
+    // Set rendering parameters for better quality
+    const renderContext = {
       canvasContext: context,
-      viewport: viewport
-    }).promise;
+      viewport: viewport,
+      renderInteractiveForms: false, // Disable form rendering for better performance
+      enableWebGL: true, // Enable WebGL for better rendering if available
+    };
+    
+    // Render the PDF page
+    await page.render(renderContext).promise;
+    
+    // Apply contrast enhancement
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    
+    // Enhance contrast
+    for (let i = 0; i < data.length; i += 4) {
+      const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+      const threshold = 128;
+      
+      // Apply threshold for better QR code contrast
+      const newValue = avg > threshold ? 255 : 0;
+      data[i] = newValue;     // Red
+      data[i + 1] = newValue; // Green
+      data[i + 2] = newValue; // Blue
+    }
+    
+    context.putImageData(imageData, 0, 0);
     
     return canvas;
   };
