@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Html5QrcodeScanner, Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScanType } from "html5-qrcode";
+import { Html5QrcodeScanner, Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -18,7 +18,14 @@ const QRScanner = () => {
 
     return () => {
       if (html5QrCode) {
-        html5QrCode.clear().catch(console.error);
+        // Properly handle the Promise returned by clear()
+        html5QrCode.clear()
+          .then(() => {
+            console.log('Scanner cleared successfully');
+          })
+          .catch((error) => {
+            console.error('Failed to clear scanner:', error);
+          });
       }
     };
   }, []);
