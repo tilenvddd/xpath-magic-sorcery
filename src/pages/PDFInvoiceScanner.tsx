@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { preprocessImage } from "@/utils/imageProcessing";
-import { Link } from "react-router-dom";
+
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Initialize PDF.js worker
@@ -32,81 +32,52 @@ const PDFInvoiceScanner = () => {
   const convertPDFToImage = async (file: File): Promise<HTMLCanvasElement> => {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const totalPages = pdf.numPages;
-    
+
+    // Assume we are only processing one page
+    const page = await pdf.getPage(1);  // Get the first page
+    const scale = 8.0;
+    const viewport = page.getViewport({ scale });
+
     // Create a hidden container for the canvas
     const container = document.createElement('div');
     container.style.position = 'absolute';
     container.style.left = '-9999px';
     document.body.appendChild(container);
 
-    // Initialize a new QRCode scanner
-    const html5QrCode = new Html5Qrcode("reader");
-
-    try {
-      // Process each page
-      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const scale = 8.0;
-        const viewport = page.getViewport({ scale });
-        
-        const canvas = document.createElement('canvas');
-        container.appendChild(canvas);
-        
-        const context = canvas.getContext('2d', { 
-          alpha: false,
-          willReadFrequently: true,
-          desynchronized: true
-        });
-
-        if (!context) {
-          throw new Error('Could not get canvas context');
-        }
-
-        context.imageSmoothingEnabled = false;
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
-
-        const renderContext = {
-          canvasContext: context,
-          viewport: viewport,
-          renderInteractiveForms: false,
-          enableWebGL: true,
-          background: 'white'
-        };
-        
-        await page.render(renderContext).promise;
-
-        // Convert canvas to blob before scanning
-        const blob = await new Promise<Blob>((resolve) => {
-          canvas.toBlob((b) => {
-            if (b) resolve(b);
-          }, 'image/jpeg', 1.0);  // Convert to JPEG for better compatibility
-        });
-
-        // Create a File object from the blob
-        const canvasFile = new File([blob], 'page.jpg', { type: 'image/jpeg' });
-
-        // Scan for QR Code on the current page
-        try {
-          const qrCodeMessage = await html5QrCode.scanFile(canvasFile, true);
-          if (qrCodeMessage && qrCodeMessage.length > 0) {
-            return canvas; // Return the canvas of the page with QR code found
-          }
-        } catch (error) {
-          // Continue processing next page if no QR code is found on this one
-          console.warn(`Page ${pageNum} did not contain a QR code. Skipping.`);
-        } finally {
-          await html5QrCode.clear(); // Reset qr code scanner between pages
-        }
-
-        container.removeChild(canvas);
-      }
-      
-      throw new Error("No QR code found in any page");
-    } finally {
-      document.body.removeChild(container);
+    const canvas = document.createElement('canvas');
+    container.appendChild(canvas);
+    
+    const context = canvas.getContext('2d');
+    if (!context) {
+      console.error('Canvas context creation failed');
+      return null!;
     }
+
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    const renderContext = {
+      canvasContext: context,
+      viewport: viewport,
+      renderInteractiveForms: false,
+    };
+
+    // Render the page into the canvas
+    await page.render(renderContext).promise;
+
+    // Convert canvas to blob before scanning
+    const blob = await new Promise<Blob>((resolve) => {
+      canvas.toBlob((b) => {
+        if (b) resolve(b);
+      }, 'image/jpeg', 1.0);
+    });
+
+    // Create a File object from the blob
+    const canvasFile = new File([blob], 'page.jpg', { type: 'image/jpeg' });
+
+    document.body.removeChild(container);  // Clean up
+
+    return canvasFile;  // Return the canvas file for further scanning
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,44 +92,34 @@ const PDFInvoiceScanner = () => {
 
     try {
       setIsProcessing(true);
-      
-      // Call the PDF conversion to image function
-      const canvas = await convertPDFToImage(file);
-      const imageBlob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((blob) => {
-          if (blob) resolve(blob);
-        }, 'image/jpeg', 1.0); // Convert canvas to high-quality JPEG
-      });
-      
-      // Convert Blob to file, preprocess it
-      const imageFile = new File([imageBlob], 'pdf-page.jpg', { type: 'image/jpeg' });
-      const processedFile = await preprocessImage(imageFile);
-
-      // Scan for QR code on the processed image
       const html5QrCode = new Html5Qrcode("reader");
-
+      
       try {
+        // Convert the PDF to an image (only one page)
+        const canvasFile = await convertPDFToImage(file);
+        
+        if (!canvasFile) {
+          throw new Error("Error converting PDF to image");
+        }
+
+        // Convert Blob to file, preprocess it
+        const processedFile = await preprocessImage(canvasFile);
+        
+        // Scan for QR code
         const qrCodeMessage = await html5QrCode.scanFile(processedFile, true);
 
-        if (qrCodeMessage.length > 0) {
+        if (qrCodeMessage && qrCodeMessage.length > 0) {
           handleScanSuccess(qrCodeMessage);
         } else {
-          toast.error("No QR code found in the PDF. Please ensure your invoice contains a clear, readable QR code and try again.", {
-            duration: 5000
-          });
+          toast.error("No QR code found in the PDF. Please ensure the invoice contains a QR code and try again.");
         }
-      } catch (scanError) {
-        console.error("QR Code scanning failed: ", scanError);
-        toast.error("QR Code scanning failed. Please try again.");
-      } finally {
-        await html5QrCode.clear();
+      } catch (error) {
+        console.error("Error during processing:", error);
+        toast.error("Failed to process the PDF. Ensure it’s not corrupted, encrypted, or too large.");
+        handleScanError(error as string);
       }
-
     } catch (error) {
-      console.error("Error during PDF processing:", error);
-      toast.error("Failed to process the PDF. Make sure it’s not encrypted, corrupted, or too large.");
-      handleScanError(error as string);
-    } finally {
+      toast.error("Error processing the PDF. Please try again with a different file.");
       setIsProcessing(false);
     }
   };
@@ -168,9 +129,7 @@ const PDFInvoiceScanner = () => {
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
           <CardTitle>PDF Invoice QR Scanner</CardTitle>
-          <CardDescription>
-            Upload a PDF invoice document to scan its QR code
-          </CardDescription>
+          <CardDescription>Upload a PDF invoice document to scan its QR code</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -219,14 +178,6 @@ const PDFInvoiceScanner = () => {
                 </CardContent>
               </Card>
             )}
-
-            <div className="text-center mt-4">
-              <Link to="/qr-scanner">
-                <Button variant="outline">
-                  Switch to General QR Scanner
-                </Button>
-              </Link>
-            </div>
           </div>
         </CardContent>
       </Card>
