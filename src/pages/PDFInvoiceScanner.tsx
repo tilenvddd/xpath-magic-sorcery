@@ -12,7 +12,7 @@ const convertPDFToImage = async (file: File): Promise<HTMLCanvasElement> => {
 
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d', { 
-    alpha: true,
+    alpha: false,
     willReadFrequently: true,
     desynchronized: true
   });
