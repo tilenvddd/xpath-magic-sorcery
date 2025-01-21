@@ -38,8 +38,14 @@ const PDFInvoiceScanner = () => {
       
       try {
         const processedFile = await preprocessImage(file);
-        const decodedText = await html5QrCode.scanFile(processedFile, /* verbose= */ true);
-        handleScanSuccess(decodedText);
+        const qrCodeMessage = await html5QrCode.scanFile(processedFile, /* verbose= */ true);
+        
+        // Validate QR code format (you can customize this validation)
+        if (qrCodeMessage.length > 0) {
+          handleScanSuccess(qrCodeMessage);
+        } else {
+          toast.error("Invalid QR code format detected");
+        }
       } catch (error) {
         if (error instanceof Error) {
           if (error.message.includes("No MultiFormat Readers")) {

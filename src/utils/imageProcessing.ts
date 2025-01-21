@@ -11,8 +11,8 @@ export const preprocessImage = async (file: File): Promise<File> => {
 
     img.onload = () => {
       // Set reasonable maximum dimensions
-      const MAX_WIDTH = 1024;
-      const MAX_HEIGHT = 1024;
+      const MAX_WIDTH = 1600;
+      const MAX_HEIGHT = 1600;
 
       let width = img.width;
       let height = img.height;
@@ -34,11 +34,11 @@ export const preprocessImage = async (file: File): Promise<File> => {
       canvas.width = width;
       canvas.height = height;
 
-      // Apply image processing
-      ctx.filter = 'contrast(1.2) brightness(1.1) grayscale(1)';
+      // Apply minimal image processing to preserve QR code quality
+      ctx.filter = 'contrast(1.1) brightness(1.05)';
       ctx.drawImage(img, 0, 0, width, height);
 
-      // Convert canvas to blob
+      // Convert canvas to blob with high quality
       canvas.toBlob((blob) => {
         if (!blob) {
           reject(new Error('Could not create blob from canvas'));
@@ -50,7 +50,7 @@ export const preprocessImage = async (file: File): Promise<File> => {
           lastModified: Date.now(),
         });
         resolve(processedFile);
-      }, 'image/jpeg', 0.9);
+      }, 'image/jpeg', 0.95);
     };
 
     img.onerror = () => reject(new Error('Failed to load image'));
