@@ -34,52 +34,70 @@ const PDFInvoiceScanner = () => {
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     const page = await pdf.getPage(1); // Get first page
     
-    // Increase scale for better quality (4.0 provides much higher resolution)
-    const scale = 4.0;
+    // Increase scale for even better quality (8.0 provides extremely high resolution)
+    const scale = 8.0;
     const viewport = page.getViewport({ scale });
     
     // Create a canvas with the desired dimensions
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d', { 
-      alpha: false, // Disable alpha for better performance
-      willReadFrequently: true // Optimize for pixel manipulation
+      alpha: false,
+      willReadFrequently: true,
+      desynchronized: true // Optimize rendering performance
     });
     
     if (!context) {
       throw new Error('Could not get canvas context');
     }
     
-    // Set canvas dimensions to match the scaled viewport
+    // Disable image smoothing for sharper edges
+    context.imageSmoothingEnabled = false;
+    
+    // Set canvas dimensions
     canvas.height = viewport.height;
     canvas.width = viewport.width;
     
-    // Set rendering parameters for better quality
+    // Enhanced rendering parameters
     const renderContext = {
       canvasContext: context,
       viewport: viewport,
-      renderInteractiveForms: false, // Disable form rendering for better performance
-      enableWebGL: true, // Enable WebGL for better rendering if available
+      renderInteractiveForms: false,
+      enableWebGL: true,
+      background: 'white' // Ensure white background for better contrast
     };
     
     // Render the PDF page
     await page.render(renderContext).promise;
     
-    // Apply contrast enhancement
+    // Enhanced image processing
     const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
     
-    // Enhance contrast
+    // Apply advanced image processing
     for (let i = 0; i < data.length; i += 4) {
-      const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-      const threshold = 128;
+      // Calculate luminance with proper color weights
+      const luminance = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
       
-      // Apply threshold for better QR code contrast
-      const newValue = avg > threshold ? 255 : 0;
-      data[i] = newValue;     // Red
-      data[i + 1] = newValue; // Green
-      data[i + 2] = newValue; // Blue
+      // Apply adaptive thresholding
+      const threshold = 160; // Increased threshold for better separation
+      const gamma = 1.5; // Gamma correction factor
+      
+      // Apply gamma correction and thresholding
+      const normalizedLuminance = Math.pow(luminance / 255, gamma) * 255;
+      const newValue = normalizedLuminance > threshold ? 255 : 0;
+      
+      // Sharpen edges by increasing contrast in transition areas
+      const edgeDetection = Math.abs(luminance - threshold) < 20;
+      const finalValue = edgeDetection ? (luminance > threshold ? 255 : 0) : newValue;
+      
+      // Apply the processed values
+      data[i] = finalValue;     // Red
+      data[i + 1] = finalValue; // Green
+      data[i + 2] = finalValue; // Blue
+      data[i + 3] = 255;        // Alpha (fully opaque)
     }
     
+    // Apply the processed image data back to the canvas
     context.putImageData(imageData, 0, 0);
     
     return canvas;
