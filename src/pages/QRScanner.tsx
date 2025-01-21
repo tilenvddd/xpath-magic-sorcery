@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Html5QrcodeScanner, Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
-import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -11,30 +10,44 @@ const QRScanner = () => {
   const [scanner, setScanner] = useState<Html5QrcodeScanner | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  useEffect(() => {
-    const newScanner = new Html5QrcodeScanner(
-      "reader",
-      {
-        qrbox: {
-          width: 250,
-          height: 250,
-        },
-        fps: 15,
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true
-        },
-        rememberLastUsedCamera: true,
-        aspectRatio: 1.0,
-        formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ],
-      },
-      false
-    );
+  // DOM Ready function
+  const domReady = (fn: () => void) => {
+    if (
+      document.readyState === "complete" ||
+      document.readyState === "interactive"
+    ) {
+      setTimeout(fn, 1000);
+    } else {
+      document.addEventListener("DOMContentLoaded", fn);
+    }
+  };
 
-    setScanner(newScanner);
+  useEffect(() => {
+    domReady(() => {
+      const newScanner = new Html5QrcodeScanner(
+        "reader",
+        {
+          qrbox: {
+            width: 250,
+            height: 250,
+          },
+          fps: 10,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          },
+          rememberLastUsedCamera: true,
+          aspectRatio: 1.0,
+          formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ],
+        },
+        false
+      );
+
+      setScanner(newScanner);
+    });
 
     return () => {
-      if (newScanner) {
-        newScanner.clear().catch(console.error);
+      if (scanner) {
+        scanner.clear().catch(console.error);
       }
     };
   }, []);
