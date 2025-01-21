@@ -10,45 +10,43 @@ export const preprocessImage = async (file: File): Promise<File> => {
     }
 
     img.onload = () => {
-      // Define your Region of Interest (ROI)
-      const ROI = { x: 100, y: 100, width: 800, height: 800 }; // Example ROI: top-left corner at (100,100), 800x800 pixels size
+      // Define the dimensions for the ROI centered in the image
+      const ROI_WIDTH = 500;  // Set your desired center region width
+      const ROI_HEIGHT = 500; // Set your desired center region height
 
       let width = img.width;
       let height = img.height;
 
-      // Calculate new dimensions while maintaining aspect ratio for full image size or within ROI bounds
+      // Calculate the center of the image
+      const x = Math.max(0, Math.floor((width - ROI_WIDTH) / 2));  // Center horizontally
+      const y = Math.max(0, Math.floor((height - ROI_HEIGHT) / 2)); // Center vertically
+
+      // Set reasonable maximum dimensions for scaling
+      const MAX_WIDTH = 1024;
+      const MAX_HEIGHT = 1024;
+
+      // Calculate new dimensions while maintaining aspect ratio
       if (width > height) {
-        if (width > ROI.width) { // Adjust width to ROI width if necessary
-          height = Math.round((height * ROI.width) / width);
-          width = ROI.width;
+        if (width > MAX_WIDTH) {
+          height = Math.round((height * MAX_WIDTH) / width);
+          width = MAX_WIDTH;
         }
       } else {
-        if (height > ROI.height) { // Adjust height to ROI height if necessary
-          width = Math.round((width * ROI.height) / height);
-          height = ROI.height;
+        if (height > MAX_HEIGHT) {
+          width = Math.round((width * MAX_HEIGHT) / height);
+          height = MAX_HEIGHT;
         }
       }
-      const ROIs = [
-  { x: 0, y: 0, width: 500, height: 500 },   // Top-left section
-  { x: 500, y: 0, width: 500, height: 500 }, // Top-right section
-  { x: 0, y: 500, width: 500, height: 500 }, // Bottom-left section
-  { x: 500, y: 500, width: 500, height: 500 } // Bottom-right section
-];
-
-ROIs.forEach(roi => {
-  // Apply similar logic per ROI, resizing and processing images accordingly
-});
-
 
       // Set canvas dimensions
       canvas.width = width;
       canvas.height = height;
 
-      // Apply image processing within the defined ROI area
+      // Apply image processing within the defined center ROI
       ctx.filter = 'contrast(1.2) brightness(1.1) grayscale(1)';
-      
-      // Draw only the image region of interest (crop the image based on the ROI)
-      ctx.drawImage(img, ROI.x, ROI.y, ROI.width, ROI.height, 0, 0, width, height);
+
+      // Draw only the image center region (crop the image based on the center ROI)
+      ctx.drawImage(img, x, y, ROI_WIDTH, ROI_HEIGHT, 0, 0, width, height);
 
       // Convert canvas to blob
       canvas.toBlob((blob) => {
