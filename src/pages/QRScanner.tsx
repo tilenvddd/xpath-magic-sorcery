@@ -18,14 +18,16 @@ const QRScanner = () => {
 
     return () => {
       if (html5QrCode) {
-        // Properly handle the Promise returned by clear()
-        html5QrCode.clear()
-          .then(() => {
+        // Use async/await to handle the cleanup
+        const cleanup = async () => {
+          try {
+            await html5QrCode.clear();
             console.log('Scanner cleared successfully');
-          })
-          .catch((error) => {
+          } catch (error) {
             console.error('Failed to clear scanner:', error);
-          });
+          }
+        };
+        cleanup();
       }
     };
   }, []);
