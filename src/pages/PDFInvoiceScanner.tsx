@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { preprocessImage } from "@/utils/imageProcessing";
 import { Link } from "react-router-dom";
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.entry';
 
-// Set worker path for PDF.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Set worker using the bundled worker file
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 const PDFInvoiceScanner = () => {
   const [scanResult, setScanResult] = useState<string | null>(null);
