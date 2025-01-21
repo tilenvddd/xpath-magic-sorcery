@@ -70,7 +70,7 @@ const QRScanner = () => {
       const imageUrl = URL.createObjectURL(file);
       
       try {
-        const decodedText = await html5QrCode.scanFile(file, true);
+        const decodedText = await html5QrCode.scanFile(file);
         handleScanSuccess(decodedText);
       } catch (error) {
         if (error instanceof Error) {
@@ -130,20 +130,26 @@ const QRScanner = () => {
                       </p>
                       <p className="text-xs text-gray-500">High-quality PNG, JPG or JPEG recommended for best results</p>
                     </div>
-                    <Input
-                      id="file-upload"
-                      type="file"
-                      className="hidden"
-                      accept=".png,.jpg,.jpeg"
-                      onChange={handleFileUpload}
-                      disabled={isProcessing}
-                    />
                   </div>
                 </label>
               </div>
               
-              <div className="text-center">
-                <p className="text-sm text-gray-500 mb-4">- OR -</p>
+              <div className="flex justify-center gap-4">
+                <Input
+                  id="file-upload"
+                  type="file"
+                  className="hidden"
+                  accept=".png,.jpg,.jpeg"
+                  onChange={handleFileUpload}
+                  disabled={isProcessing}
+                />
+                <Button
+                  onClick={() => document.getElementById('file-upload')?.click()}
+                  variant="secondary"
+                  disabled={isProcessing}
+                >
+                  Upload File
+                </Button>
                 {!scanResult && !isProcessing && (
                   <Button onClick={startScanning}>
                     Start Camera Scanning
