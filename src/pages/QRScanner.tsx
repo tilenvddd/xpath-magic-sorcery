@@ -67,7 +67,11 @@ const QRScanner = () => {
         const decodedText = await html5QrCode.scanFile(file, true);
         handleScanSuccess(decodedText);
       } catch (error) {
-        toast.error("No QR code found in the document. Please try another file.");
+        if (error instanceof Error && error.message.includes("No MultiFormat Readers")) {
+          toast.error("The file format is not supported or no QR code was detected. Please try a different file or ensure the QR code is clearly visible.");
+        } else {
+          toast.error("No QR code found in the document. Please try another file.");
+        }
         handleScanError(error as string);
       } finally {
         URL.revokeObjectURL(imageUrl);
