@@ -1,7 +1,3 @@
-import { useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
-import * as pdfjsLib from 'pdfjs-dist';
-
 const convertPDFToImage = async (file: File): Promise<HTMLCanvasElement> => {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -54,7 +50,7 @@ const convertPDFToImage = async (file: File): Promise<HTMLCanvasElement> => {
 };
 
 // Function for denoising the image (example using Gaussian blur or median filtering)
-function denoiseImage(data: Uint8ClampedArray, width: number, height: number) {
+function denoiseImage(data, width, height) {
   for (let i = 0; i < data.length; i += 4) {
     // Here you can apply a Gaussian blur, median filtering, or other noise reduction techniques
     // The following line is just an example, you can customize the logic
@@ -64,7 +60,7 @@ function denoiseImage(data: Uint8ClampedArray, width: number, height: number) {
 }
 
 // Function for applying adaptive thresholding
-function adaptiveThresholding(data: Uint8ClampedArray, width: number, height: number) {
+function adaptiveThresholding(data, width, height) {
   const blockSize = 15;
   const constant = 5;
 
@@ -85,7 +81,7 @@ function adaptiveThresholding(data: Uint8ClampedArray, width: number, height: nu
 }
 
 // Function for edge detection (Sobel Filter example)
-function applyEdgeDetection(data: Uint8ClampedArray, width: number, height: number) {
+function applyEdgeDetection(data, width, height) {
   // Apply Sobel filter or Canny edge detection to highlight the QR code's edges
   // This will sharpen the QR code and reduce noise
   const sobelData = new Float32Array(width * height);
@@ -108,41 +104,3 @@ function applyEdgeDetection(data: Uint8ClampedArray, width: number, height: numb
   }
 }
 
-const PDFInvoiceScanner = () => {
-  const [result, setResult] = useState<string>('');
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const canvas = await convertPDFToImage(file);
-      // Add your QR code scanning logic here using the canvas
-      setResult('PDF processed successfully');
-    } catch (error) {
-      console.error('Error processing PDF:', error);
-      setResult('Error processing PDF');
-    }
-  };
-
-  return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">PDF Invoice Scanner</h1>
-      <input
-        type="file"
-        accept=".pdf"
-        onChange={handleFileUpload}
-        className="block w-full text-sm text-slate-500
-          file:mr-4 file:py-2 file:px-4
-          file:rounded-full file:border-0
-          file:text-sm file:font-semibold
-          file:bg-violet-50 file:text-violet-700
-          hover:file:bg-violet-100
-        "
-      />
-      {result && <p className="mt-4">{result}</p>}
-    </div>
-  );
-};
-
-export default PDFInvoiceScanner;
