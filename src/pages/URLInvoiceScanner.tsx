@@ -14,7 +14,7 @@ const URLInvoiceScanner = () => {
 
   const handleScanSuccess = (decodedText: string) => {
     setScanResult(decodedText);
-    toast.success("Invoice QR code scanned successfully!");
+    toast.success("QR code scanned successfully!");
     setIsProcessing(false);
   };
 
@@ -33,13 +33,10 @@ const URLInvoiceScanner = () => {
     setIsProcessing(true);
 
     try {
-      // Try to fetch with CORS mode
-      const response = await fetch(url, {
-        mode: 'cors',
-        headers: {
-          'Accept': 'image/*'
-        }
-      });
+      // Use a CORS proxy service
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+      
+      const response = await fetch(proxyUrl);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -49,7 +46,6 @@ const URLInvoiceScanner = () => {
       const html5QrCode = new Html5Qrcode("reader");
 
       try {
-        // Convert Blob to File
         const file = new File([blob], 'image.jpg', { 
           type: blob.type || 'image/jpeg',
           lastModified: Date.now()
@@ -59,9 +55,12 @@ const URLInvoiceScanner = () => {
         handleScanSuccess(qrCodeMessage);
       } catch (error) {
         if (error instanceof Error) {
-          toast.error("No QR code found in the image. Please ensure the URL points to a clear, readable QR code.", {
-            duration: 5000
-          });
+          if (error.message.includes("No MultiFormat Readers")) {
+            toast.error("Unable to detect QR code. Try these tips:\n- Ensure image is well-lit and in focus\n- QR code should be clearly visible\n- Try a higher resolution image");
+          } else {
+            toast.error("Failed to process the file. Please try a different image with a clearer QR code.");
+          }
+          console.log("Scanning error:", error.message);
         }
         handleScanError(error as string);
       } finally {
@@ -71,7 +70,7 @@ const URLInvoiceScanner = () => {
       console.error('Fetch error:', error);
       toast.error("Failed to fetch the image. This might be due to:", {
         duration: 6000,
-        description: "1. CORS restrictions on the server\n2. Invalid image URL\n3. Server is not responding\n\nTry downloading the image and using the PDF scanner instead."
+        description: "1. Invalid image URL\n2. Server is not responding\n3. Image format not supported\n\nTry downloading the image and using the PDF scanner instead."
       });
       setIsProcessing(false);
     }
