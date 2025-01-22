@@ -305,11 +305,18 @@ const PDFInvoiceScanner = () => {
             )}
 
             <div className="text-center mt-4">
-              <Link to="/qr-scanner">
-                <Button variant="outline">
-                  Switch to General QR Scanner
-                </Button>
-              </Link>
+              <div className="flex gap-4 justify-center">
+                <Link to="/qr-scanner">
+                  <Button variant="outline">
+                    Switch to General QR Scanner
+                  </Button>
+                </Link>
+                <Link to="/url-invoice-scanner">
+                  <Button variant="outline">
+                    Switch to URL Scanner
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
         </CardContent>
