@@ -28,64 +28,89 @@ const PDFInvoiceScanner = () => {
     setIsProcessing(false);
   };
 
-  const segmentAndScanImage = async (canvas: HTMLCanvasElement, html5QrCode: Html5Qrcode): Promise<string | null> => {
-    const context = canvas.getContext('2d');
-    if (!context) return null;
+  const scanSegment = async (
+    canvas: HTMLCanvasElement,
+    html5QrCode: Html5Qrcode,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ): Promise<string | null> => {
+    const segmentCanvas = document.createElement('canvas');
+    segmentCanvas.width = width;
+    segmentCanvas.height = height;
+    const segmentContext = segmentCanvas.getContext('2d');
 
-    // Define segment size (divide into 12 segments - 4 rows x 3 columns)
-    const segmentWidth = canvas.width / 3;  // 3 columns
-    const segmentHeight = canvas.height / 4; // 4 rows
+    if (!segmentContext) return null;
 
-    // Create segments grid (4x3)
-    const segments = [];
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 3; col++) {
-        segments.push({
-          x: col * segmentWidth,
-          y: row * segmentHeight
-        });
-      }
+    // Draw segment to new canvas
+    segmentContext.drawImage(
+      canvas,
+      x, y, width, height,
+      0, 0, width, height
+    );
+
+    try {
+      // Convert segment to blob
+      const blob = await new Promise<Blob>((resolve) => {
+        segmentCanvas.toBlob((b) => {
+          if (b) resolve(b);
+        }, 'image/jpeg', 1.0);
+      });
+
+      // Create File from blob
+      const segmentFile = new File([blob], 'segment.jpg', { type: 'image/jpeg' });
+      
+      // Process and scan segment
+      const processedSegment = await preprocessImage(segmentFile);
+      const qrCodeMessage = await html5QrCode.scanFile(processedSegment, /* verbose= */ true);
+      
+      return qrCodeMessage;
+    } catch (error) {
+      console.log("Segment scanning error:", error);
+      return null;
     }
+  };
 
-    // Try scanning each segment
+  const recursiveSegmentScan = async (
+    canvas: HTMLCanvasElement,
+    html5QrCode: Html5Qrcode,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    depth: number = 0
+  ): Promise<string | null> => {
+    // Try scanning current segment
+    const result = await scanSegment(canvas, html5QrCode, x, y, width, height);
+    if (result) return result;
+
+    // Stop recursion if segments become too small
+    if (width < 100 || height < 100 || depth > 3) return null;
+
+    // Divide segment into quarters and scan each
+    const halfWidth = Math.floor(width / 2);
+    const halfHeight = Math.floor(height / 2);
+
+    const segments = [
+      { x, y, w: halfWidth, h: halfHeight },
+      { x: x + halfWidth, y, w: halfWidth, h: halfHeight },
+      { x, y: y + halfHeight, w: halfWidth, h: halfHeight },
+      { x: x + halfWidth, y: y + halfHeight, w: halfWidth, h: halfHeight }
+    ];
+
+    // Try each sub-segment
     for (const segment of segments) {
-      const segmentCanvas = document.createElement('canvas');
-      segmentCanvas.width = segmentWidth;
-      segmentCanvas.height = segmentHeight;
-      const segmentContext = segmentCanvas.getContext('2d');
-
-      if (segmentContext) {
-        // Draw segment to new canvas
-        segmentContext.drawImage(
-          canvas,
-          segment.x, segment.y, segmentWidth, segmentHeight,
-          0, 0, segmentWidth, segmentHeight
-        );
-
-        try {
-          // Convert segment to blob
-          const blob = await new Promise<Blob>((resolve) => {
-            segmentCanvas.toBlob((b) => {
-              if (b) resolve(b);
-            }, 'image/jpeg', 1.0);
-          });
-
-          // Create File from blob
-          const segmentFile = new File([blob], 'segment.jpg', { type: 'image/jpeg' });
-          
-          // Process and scan segment
-          const processedSegment = await preprocessImage(segmentFile);
-          const qrCodeMessage = await html5QrCode.scanFile(processedSegment, /* verbose= */ true);
-          
-          if (qrCodeMessage) {
-            return qrCodeMessage;
-          }
-        } catch (error) {
-          console.log("Segment scanning error:", error);
-          // Continue to next segment if current fails
-          continue;
-        }
-      }
+      const subResult = await recursiveSegmentScan(
+        canvas,
+        html5QrCode,
+        segment.x,
+        segment.y,
+        segment.w,
+        segment.h,
+        depth + 1
+      );
+      if (subResult) return subResult;
     }
 
     return null;
@@ -141,7 +166,14 @@ const PDFInvoiceScanner = () => {
       
       try {
         const canvas = await convertPDFToImage(file);
-        const qrCodeMessage = await segmentAndScanImage(canvas, html5QrCode);
+        const qrCodeMessage = await recursiveSegmentScan(
+          canvas,
+          html5QrCode,
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
         
         if (qrCodeMessage) {
           handleScanSuccess(qrCodeMessage);
