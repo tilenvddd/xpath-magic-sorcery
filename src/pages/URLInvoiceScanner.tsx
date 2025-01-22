@@ -6,12 +6,6 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Link } from "react-router-dom";
 import { ExternalLink } from "lucide-react";
-import * as pdfjsLib from 'pdfjs-dist';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.mjs',
-  import.meta.url,
-).toString();
 
 const URLInvoiceScanner = () => {
   const [url, setUrl] = useState<string>("");
@@ -39,12 +33,29 @@ const URLInvoiceScanner = () => {
     setIsProcessing(true);
 
     try {
-      const response = await fetch(url);
+      // Try to fetch with CORS mode
+      const response = await fetch(url, {
+        mode: 'cors',
+        headers: {
+          'Accept': 'image/*'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const blob = await response.blob();
       const html5QrCode = new Html5Qrcode("reader");
 
       try {
-        const qrCodeMessage = await html5QrCode.scanFile(blob, true);
+        // Convert Blob to File
+        const file = new File([blob], 'image.jpg', { 
+          type: blob.type || 'image/jpeg',
+          lastModified: Date.now()
+        });
+
+        const qrCodeMessage = await html5QrCode.scanFile(file, true);
         handleScanSuccess(qrCodeMessage);
       } catch (error) {
         if (error instanceof Error) {
@@ -57,8 +68,10 @@ const URLInvoiceScanner = () => {
         await html5QrCode.clear();
       }
     } catch (error) {
-      toast.error("Failed to fetch the image. Please check the URL and try again.", {
-        duration: 5000
+      console.error('Fetch error:', error);
+      toast.error("Failed to fetch the image. This might be due to:", {
+        duration: 6000,
+        description: "1. CORS restrictions on the server\n2. Invalid image URL\n3. Server is not responding\n\nTry downloading the image and using the PDF scanner instead."
       });
       setIsProcessing(false);
     }
