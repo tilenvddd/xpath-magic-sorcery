@@ -51,7 +51,7 @@ const URLInvoiceScanner = () => {
       const html5QrCode = new Html5Qrcode("reader");
 
       try {
-        const file = new File([blob], 'image.jpg', { 
+        const file = new File([blob], 'image.jpg', {
           type: blob.type || 'image/jpeg',
           lastModified: Date.now()
         });
