@@ -32,69 +32,93 @@ const PDFInvoiceScanner = () => {
   const convertPDFToImage = async (file: File): Promise<HTMLCanvasElement> => {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const page = await pdf.getPage(1); // Get first page
+    const page = await pdf.getPage(1);
     
-    // Increase scale for even better quality (8.0 provides extremely high resolution)
+    // Increase scale for better quality
     const scale = 8.0;
     const viewport = page.getViewport({ scale });
     
-    // Create a canvas with the desired dimensions
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d', { 
       alpha: false,
       willReadFrequently: true,
-      desynchronized: true // Optimize rendering performance
+      desynchronized: true
     });
     
     if (!context) {
       throw new Error('Could not get canvas context');
     }
     
-    // Disable image smoothing for sharper edges
     context.imageSmoothingEnabled = false;
     
-    // Set canvas dimensions
     canvas.height = viewport.height;
     canvas.width = viewport.width;
     
-    // Enhanced rendering parameters
     const renderContext = {
       canvasContext: context,
       viewport: viewport,
       renderInteractiveForms: false,
       enableWebGL: true,
-      background: 'white' // Ensure white background for better contrast
+      background: 'white'
     };
     
-    // Render the PDF page
     await page.render(renderContext).promise;
     
-    // Enhanced image processing
+    // Enhanced image processing for noise reduction
     const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
     
-    // Apply advanced image processing
+    // Apply advanced noise reduction and enhancement
     for (let i = 0; i < data.length; i += 4) {
-      // Calculate luminance with proper color weights
+      // Calculate weighted luminance using proper color weights
       const luminance = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
       
-      // Apply adaptive thresholding
-      const threshold = 160; // Increased threshold for better separation
-      const gamma = 1.5; // Gamma correction factor
+      // Adaptive thresholding with noise reduction
+      const threshold = 180; // Increased threshold for better noise handling
+      const gamma = 1.8;    // Increased gamma for better contrast
       
-      // Apply gamma correction and thresholding
-      const normalizedLuminance = Math.pow(luminance / 255, gamma) * 255;
-      const newValue = normalizedLuminance > threshold ? 255 : 0;
+      // Apply bilateral filtering for noise reduction while preserving edges
+      let sum = 0;
+      let count = 0;
+      const radius = 1;
       
-      // Sharpen edges by increasing contrast in transition areas
-      const edgeDetection = Math.abs(luminance - threshold) < 20;
-      const finalValue = edgeDetection ? (luminance > threshold ? 255 : 0) : newValue;
+      // Simple bilateral filter implementation
+      for (let dx = -radius; dx <= radius; dx++) {
+        for (let dy = -radius; dy <= radius; dy++) {
+          const offset = (dx + dy * canvas.width) * 4;
+          if (i + offset >= 0 && i + offset < data.length) {
+            const neighborLuminance = (
+              data[i + offset] * 0.299 +
+              data[i + offset + 1] * 0.587 +
+              data[i + offset + 2] * 0.114
+            );
+            // Weight based on spatial and intensity difference
+            const weight = Math.exp(
+              -(Math.abs(luminance - neighborLuminance) / 30.0) -
+              (dx * dx + dy * dy) / 2.0
+            );
+            sum += neighborLuminance * weight;
+            count += weight;
+          }
+        }
+      }
+      
+      // Get denoised value
+      const denoisedLuminance = count > 0 ? sum / count : luminance;
+      
+      // Apply gamma correction and adaptive thresholding
+      const normalizedLuminance = Math.pow(denoisedLuminance / 255, gamma) * 255;
+      const finalValue = normalizedLuminance > threshold ? 255 : 0;
+      
+      // Sharpen edges in transition areas
+      const edgeDetection = Math.abs(denoisedLuminance - threshold) < 25;
+      const outputValue = edgeDetection ? (denoisedLuminance > threshold ? 255 : 0) : finalValue;
       
       // Apply the processed values
-      data[i] = finalValue;     // Red
-      data[i + 1] = finalValue; // Green
-      data[i + 2] = finalValue; // Blue
-      data[i + 3] = 255;        // Alpha (fully opaque)
+      data[i] = outputValue;     // Red
+      data[i + 1] = outputValue; // Green
+      data[i + 2] = outputValue; // Blue
+      data[i + 3] = 255;         // Alpha
     }
     
     // Apply the processed image data back to the canvas
