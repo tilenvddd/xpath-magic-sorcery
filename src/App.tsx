@@ -4,7 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
-import QRScanner from "./pages/QRScanner";
 import PDFInvoiceScanner from "./pages/PDFInvoiceScanner";
 import URLInvoiceScanner from "./pages/URLInvoiceScanner";
 
@@ -18,7 +17,6 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/qr-scanner" element={<QRScanner />} />
           <Route path="/pdf-invoice-scanner" element={<PDFInvoiceScanner />} />
           <Route path="/url-invoice-scanner" element={<URLInvoiceScanner />} />
         </Routes>
