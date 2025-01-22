@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { preprocessImage } from "@/utils/imageProcessing";
 import { Link } from "react-router-dom";
 import * as pdfjsLib from 'pdfjs-dist';
+import { ExternalLink } from "lucide-react";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.mjs',
@@ -231,6 +232,14 @@ const PDFInvoiceScanner = () => {
     }
   };
 
+  const handleOpenLink = () => {
+    if (scanResult && (scanResult.startsWith('http://') || scanResult.startsWith('https://'))) {
+      window.open(scanResult, '_blank', 'noopener,noreferrer');
+    } else {
+      toast.error("The scanned QR code does not contain a valid URL");
+    }
+  };
+
   return (
     <div className="container mx-auto p-4">
       <Card className="max-w-3xl mx-auto">
@@ -280,12 +289,17 @@ const PDFInvoiceScanner = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-lg break-all">{scanResult}</p>
-                  <Button 
-                    className="mt-4"
-                    onClick={() => setScanResult(null)}
-                  >
-                    Scan Another Invoice
-                  </Button>
+                  <div className="flex gap-4 mt-4">
+                    <Button onClick={() => setScanResult(null)}>
+                      Scan Another Invoice
+                    </Button>
+                    {(scanResult.startsWith('http://') || scanResult.startsWith('https://')) && (
+                      <Button onClick={handleOpenLink} variant="secondary">
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Open Link
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}
