@@ -258,6 +258,12 @@ const PDFInvoiceScanner = () => {
       const blob = await response.blob();
       console.log("Received blob:", blob.type, blob.size);
       
+      // Convert blob to File
+      const file = new File([blob], 'downloaded-file.pdf', { 
+        type: blob.type,
+        lastModified: Date.now()
+      });
+      
       const html5QrCode = new Html5Qrcode("reader");
 
       try {
@@ -265,7 +271,7 @@ const PDFInvoiceScanner = () => {
         
         if (blob.type === 'application/pdf') {
           console.log("Converting PDF to image...");
-          canvas = await convertPDFToImage(blob);
+          canvas = await convertPDFToImage(file);
         } else {
           const tempImage = new Image();
           canvas = document.createElement('canvas');
