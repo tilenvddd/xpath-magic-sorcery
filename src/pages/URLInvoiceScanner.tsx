@@ -6,6 +6,12 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Link } from "react-router-dom";
 import { ExternalLink } from "lucide-react";
+import * as pdfjsLib from 'pdfjs-dist';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.mjs',
+  import.meta.url,
+).toString();
 
 const URLInvoiceScanner = () => {
   const [url, setUrl] = useState<string>("");
@@ -22,6 +28,41 @@ const URLInvoiceScanner = () => {
   const handleScanError = (err: string) => {
     console.warn("Scan error:", err);
     setIsProcessing(false);
+  };
+
+  const convertPDFToImage = async (pdfBlob: Blob): Promise<HTMLCanvasElement> => {
+    const arrayBuffer = await pdfBlob.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const page = await pdf.getPage(1);
+    
+    const scale = 8.0;
+    const viewport = page.getViewport({ scale });
+    
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d', { 
+      alpha: false,
+      willReadFrequently: true,
+      desynchronized: true
+    });
+    
+    if (!context) {
+      throw new Error('Could not get canvas context');
+    }
+    
+    context.imageSmoothingEnabled = false;
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    
+    const renderContext = {
+      canvasContext: context,
+      viewport: viewport,
+      renderInteractiveForms: false,
+      enableWebGL: true,
+      background: 'white'
+    };
+    
+    await page.render(renderContext).promise;
+    return canvas;
   };
 
   const handleUrlSubmit = async (e: React.FormEvent) => {
@@ -51,13 +92,29 @@ const URLInvoiceScanner = () => {
       const html5QrCode = new Html5Qrcode("reader");
 
       try {
-        const file = new File([blob], 'image.jpg', {
-          type: blob.type || 'image/jpeg',
-          lastModified: Date.now()
-        });
-        console.log("Created file object:", file.name, file.type, file.size);
-
-        const qrCodeMessage = await html5QrCode.scanFile(file, true);
+        let imageFile: File;
+        
+        if (blob.type === 'application/pdf') {
+          console.log("Converting PDF to image...");
+          const canvas = await convertPDFToImage(blob);
+          const imageBlob = await new Promise<Blob>((resolve) => {
+            canvas.toBlob((b) => {
+              if (b) resolve(b);
+            }, 'image/jpeg', 1.0);
+          });
+          imageFile = new File([imageBlob], 'converted-image.jpg', {
+            type: 'image/jpeg',
+            lastModified: Date.now()
+          });
+        } else {
+          imageFile = new File([blob], 'image.jpg', {
+            type: blob.type || 'image/jpeg',
+            lastModified: Date.now()
+          });
+        }
+        
+        console.log("Processing file:", imageFile.name, imageFile.type, imageFile.size);
+        const qrCodeMessage = await html5QrCode.scanFile(imageFile, true);
         console.log("QR code scanning result:", qrCodeMessage);
         handleScanSuccess(qrCodeMessage);
       } catch (error) {
@@ -98,7 +155,7 @@ const URLInvoiceScanner = () => {
         <CardHeader>
           <CardTitle>URL Invoice QR Scanner</CardTitle>
           <CardDescription>
-            Enter a URL to scan its QR code
+            Enter a URL to scan its QR code (supports both images and PDFs)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -106,7 +163,7 @@ const URLInvoiceScanner = () => {
             <form onSubmit={handleUrlSubmit} className="space-y-4">
               <Input
                 type="url"
-                placeholder="Enter image URL"
+                placeholder="Enter image or PDF URL"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 disabled={isProcessing}
