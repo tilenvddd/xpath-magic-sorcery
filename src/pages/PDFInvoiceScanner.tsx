@@ -8,7 +8,6 @@ import { preprocessImage } from "@/utils/imageProcessing";
 import { Link } from "react-router-dom";
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Initialize PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.mjs',
   import.meta.url,
@@ -29,77 +28,98 @@ const PDFInvoiceScanner = () => {
     setIsProcessing(false);
   };
 
+  const segmentAndScanImage = async (canvas: HTMLCanvasElement, html5QrCode: Html5Qrcode): Promise<string | null> => {
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+
+    // Define segment size (divide into 4 segments)
+    const segmentWidth = canvas.width / 2;
+    const segmentHeight = canvas.height / 2;
+
+    // Create segments
+    const segments = [
+      { x: 0, y: 0 },
+      { x: segmentWidth, y: 0 },
+      { x: 0, y: segmentHeight },
+      { x: segmentWidth, y: segmentHeight }
+    ];
+
+    // Try scanning each segment
+    for (const segment of segments) {
+      const segmentCanvas = document.createElement('canvas');
+      segmentCanvas.width = segmentWidth;
+      segmentCanvas.height = segmentHeight;
+      const segmentContext = segmentCanvas.getContext('2d');
+
+      if (segmentContext) {
+        // Draw segment to new canvas
+        segmentContext.drawImage(
+          canvas,
+          segment.x, segment.y, segmentWidth, segmentHeight,
+          0, 0, segmentWidth, segmentHeight
+        );
+
+        try {
+          // Convert segment to blob
+          const blob = await new Promise<Blob>((resolve) => {
+            segmentCanvas.toBlob((b) => {
+              if (b) resolve(b);
+            }, 'image/jpeg', 1.0);
+          });
+
+          // Create File from blob
+          const segmentFile = new File([blob], 'segment.jpg', { type: 'image/jpeg' });
+          
+          // Process and scan segment
+          const processedSegment = await preprocessImage(segmentFile);
+          const qrCodeMessage = await html5QrCode.scanFile(processedSegment, /* verbose= */ true);
+          
+          if (qrCodeMessage) {
+            return qrCodeMessage;
+          }
+        } catch (error) {
+          console.log("Segment scanning error:", error);
+          // Continue to next segment if current fails
+          continue;
+        }
+      }
+    }
+
+    return null;
+  };
+
   const convertPDFToImage = async (file: File): Promise<HTMLCanvasElement> => {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const page = await pdf.getPage(1); // Get first page
+    const page = await pdf.getPage(1);
     
-    // Increase scale for even better quality (8.0 provides extremely high resolution)
     const scale = 8.0;
     const viewport = page.getViewport({ scale });
     
-    // Create a canvas with the desired dimensions
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d', { 
       alpha: false,
       willReadFrequently: true,
-      desynchronized: true // Optimize rendering performance
+      desynchronized: true
     });
     
     if (!context) {
       throw new Error('Could not get canvas context');
     }
     
-    // Disable image smoothing for sharper edges
     context.imageSmoothingEnabled = false;
-    
-    // Set canvas dimensions
     canvas.height = viewport.height;
     canvas.width = viewport.width;
     
-    // Enhanced rendering parameters
     const renderContext = {
       canvasContext: context,
       viewport: viewport,
       renderInteractiveForms: false,
       enableWebGL: true,
-      background: 'white' // Ensure white background for better contrast
+      background: 'white'
     };
     
-    // Render the PDF page
     await page.render(renderContext).promise;
-    
-    // Enhanced image processing
-    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    
-    // Apply advanced image processing
-    for (let i = 0; i < data.length; i += 4) {
-      // Calculate luminance with proper color weights
-      const luminance = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-      
-      // Apply adaptive thresholding
-      const threshold = 160; // Increased threshold for better separation
-      const gamma = 1.5; // Gamma correction factor
-      
-      // Apply gamma correction and thresholding
-      const normalizedLuminance = Math.pow(luminance / 255, gamma) * 255;
-      const newValue = normalizedLuminance > threshold ? 255 : 0;
-      
-      // Sharpen edges by increasing contrast in transition areas
-      const edgeDetection = Math.abs(luminance - threshold) < 20;
-      const finalValue = edgeDetection ? (luminance > threshold ? 255 : 0) : newValue;
-      
-      // Apply the processed values
-      data[i] = finalValue;     // Red
-      data[i + 1] = finalValue; // Green
-      data[i + 2] = finalValue; // Blue
-      data[i + 3] = 255;        // Alpha (fully opaque)
-    }
-    
-    // Apply the processed image data back to the canvas
-    context.putImageData(imageData, 0, 0);
-    
     return canvas;
   };
 
@@ -117,20 +137,10 @@ const PDFInvoiceScanner = () => {
       const html5QrCode = new Html5Qrcode("reader");
       
       try {
-        // Convert PDF to image
         const canvas = await convertPDFToImage(file);
-        const imageBlob = await new Promise<Blob>((resolve) => {
-          canvas.toBlob((blob) => {
-            if (blob) resolve(blob);
-          }, 'image/jpeg', 1.0);
-        });
+        const qrCodeMessage = await segmentAndScanImage(canvas, html5QrCode);
         
-        const imageFile = new File([imageBlob], 'pdf-page.jpg', { type: 'image/jpeg' });
-        const processedFile = await preprocessImage(imageFile);
-        
-        const qrCodeMessage = await html5QrCode.scanFile(processedFile, /* verbose= */ true);
-        
-        if (qrCodeMessage.length > 0) {
+        if (qrCodeMessage) {
           handleScanSuccess(qrCodeMessage);
         } else {
           toast.error("No QR code found in the PDF. Please ensure your invoice contains a clear, readable QR code and try again.", {
