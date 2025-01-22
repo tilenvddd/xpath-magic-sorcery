@@ -32,10 +32,10 @@ const URLInvoiceScanner = () => {
     }
 
     setIsProcessing(true);
+    setScanResult(null); // Reset previous scan result
     console.log("Starting to process URL:", url);
 
     try {
-      // Use a CORS proxy service
       const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
       console.log("Fetching from proxy URL:", proxyUrl);
       
@@ -116,7 +116,7 @@ const URLInvoiceScanner = () => {
               </Button>
             </form>
 
-            <div id="reader" className="w-full max-w-xl mx-auto"></div>
+            <div id="reader" className="hidden"></div>
             
             {isProcessing && (
               <div className="text-center">
@@ -125,7 +125,7 @@ const URLInvoiceScanner = () => {
             )}
 
             {scanResult && (
-              <Card>
+              <Card className="mt-4">
                 <CardHeader>
                   <CardTitle>Scan Result</CardTitle>
                 </CardHeader>
