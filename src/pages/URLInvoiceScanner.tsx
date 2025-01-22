@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Link } from "react-router-dom";
 import { ExternalLink } from "lucide-react";
 import * as pdfjsLib from 'pdfjs-dist';
+import { preprocessImage } from "@/utils/imageProcessing";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.mjs',
@@ -65,6 +66,104 @@ const URLInvoiceScanner = () => {
     return canvas;
   };
 
+  const scanFullImage = async (canvas: HTMLCanvasElement, html5QrCode: Html5Qrcode): Promise<string | null> => {
+    try {
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((b) => {
+          if (b) resolve(b);
+        }, 'image/jpeg', 1.0);
+      });
+
+      const imageFile = new File([blob], 'full-image.jpg', { type: 'image/jpeg' });
+      const processedImage = await preprocessImage(imageFile);
+      const qrCodeMessage = await html5QrCode.scanFile(processedImage, /* verbose= */ true);
+      
+      return qrCodeMessage;
+    } catch (error) {
+      console.log("Full image scanning error:", error);
+      return null;
+    }
+  };
+
+  const scanSegment = async (
+    canvas: HTMLCanvasElement,
+    html5QrCode: Html5Qrcode,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ): Promise<string | null> => {
+    const segmentCanvas = document.createElement('canvas');
+    segmentCanvas.width = width;
+    segmentCanvas.height = height;
+    const segmentContext = segmentCanvas.getContext('2d');
+
+    if (!segmentContext) return null;
+
+    segmentContext.drawImage(
+      canvas,
+      x, y, width, height,
+      0, 0, width, height
+    );
+
+    try {
+      const blob = await new Promise<Blob>((resolve) => {
+        segmentCanvas.toBlob((b) => {
+          if (b) resolve(b);
+        }, 'image/jpeg', 1.0);
+      });
+
+      const segmentFile = new File([blob], 'segment.jpg', { type: 'image/jpeg' });
+      const processedSegment = await preprocessImage(segmentFile);
+      const qrCodeMessage = await html5QrCode.scanFile(processedSegment, /* verbose= */ true);
+      
+      return qrCodeMessage;
+    } catch (error) {
+      console.log("Segment scanning error:", error);
+      return null;
+    }
+  };
+
+  const recursiveSegmentScan = async (
+    canvas: HTMLCanvasElement,
+    html5QrCode: Html5Qrcode,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    depth: number = 0
+  ): Promise<string | null> => {
+    const result = await scanSegment(canvas, html5QrCode, x, y, width, height);
+    if (result) return result;
+
+    if (width < 100 || height < 100 || depth > 3) return null;
+
+    const halfWidth = Math.floor(width / 2);
+    const halfHeight = Math.floor(height / 2);
+
+    const segments = [
+      { x, y, w: halfWidth, h: halfHeight },
+      { x: x + halfWidth, y, w: halfWidth, h: halfHeight },
+      { x, y: y + halfHeight, w: halfWidth, h: halfHeight },
+      { x: x + halfWidth, y: y + halfHeight, w: halfWidth, h: halfHeight }
+    ];
+
+    for (const segment of segments) {
+      const subResult = await recursiveSegmentScan(
+        canvas,
+        html5QrCode,
+        segment.x,
+        segment.y,
+        segment.w,
+        segment.h,
+        depth + 1
+      );
+      if (subResult) return subResult;
+    }
+
+    return null;
+  };
+
   const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url) {
@@ -92,36 +191,64 @@ const URLInvoiceScanner = () => {
       const html5QrCode = new Html5Qrcode("reader");
 
       try {
-        let imageFile: File;
+        let canvas: HTMLCanvasElement;
         
         if (blob.type === 'application/pdf') {
           console.log("Converting PDF to image...");
-          const canvas = await convertPDFToImage(blob);
-          const imageBlob = await new Promise<Blob>((resolve) => {
-            canvas.toBlob((b) => {
-              if (b) resolve(b);
-            }, 'image/jpeg', 1.0);
-          });
-          imageFile = new File([imageBlob], 'converted-image.jpg', {
-            type: 'image/jpeg',
-            lastModified: Date.now()
-          });
+          canvas = await convertPDFToImage(blob);
         } else {
-          imageFile = new File([blob], 'image.jpg', {
-            type: blob.type || 'image/jpeg',
-            lastModified: Date.now()
+          const tempImage = new Image();
+          canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          if (!ctx) {
+            throw new Error('Could not get canvas context');
+          }
+          
+          await new Promise((resolve, reject) => {
+            tempImage.onload = () => {
+              canvas.width = tempImage.width;
+              canvas.height = tempImage.height;
+              ctx.drawImage(tempImage, 0, 0);
+              resolve(null);
+            };
+            tempImage.onerror = reject;
+            tempImage.src = URL.createObjectURL(blob);
           });
         }
+
+        // First try scanning the full image
+        const fullImageResult = await scanFullImage(canvas, html5QrCode);
+        if (fullImageResult) {
+          handleScanSuccess(fullImageResult);
+          return;
+        }
+
+        // If full image scan fails, try recursive segmentation
+        const qrCodeMessage = await recursiveSegmentScan(
+          canvas,
+          html5QrCode,
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
         
-        console.log("Processing file:", imageFile.name, imageFile.type, imageFile.size);
-        const qrCodeMessage = await html5QrCode.scanFile(imageFile, true);
-        console.log("QR code scanning result:", qrCodeMessage);
-        handleScanSuccess(qrCodeMessage);
+        if (qrCodeMessage) {
+          handleScanSuccess(qrCodeMessage);
+        } else {
+          toast.error("No QR code found in the file. Please ensure your invoice contains a clear, readable QR code and try again.", {
+            duration: 5000
+          });
+        }
       } catch (error) {
         if (error instanceof Error) {
           console.error("QR code scanning error:", error);
           if (error.message.includes("No MultiFormat Readers")) {
-            toast.error("Unable to detect QR code. Try these tips:\n- Ensure image is well-lit and in focus\n- QR code should be clearly visible\n- Try a higher resolution image");
+            toast.error("Unable to detect QR code. Try these tips:", {
+              duration: 6000,
+              description: "1. Ensure image is well-lit and in focus\n2. QR code should be clearly visible\n3. Try a higher resolution image"
+            });
           } else {
             toast.error("Failed to process the file. Please try a different image with a clearer QR code.");
           }
