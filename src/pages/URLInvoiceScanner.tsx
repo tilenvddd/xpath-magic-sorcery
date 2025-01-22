@@ -32,7 +32,7 @@ const URLInvoiceScanner = () => {
     }
 
     setIsProcessing(true);
-    setScanResult(null); // Reset previous scan result
+    setScanResult(null);
     console.log("Starting to process URL:", url);
 
     try {
@@ -72,7 +72,7 @@ const URLInvoiceScanner = () => {
         }
         handleScanError(error as string);
       } finally {
-        await html5QrCode.clear();
+        html5QrCode.clear();
       }
     } catch (error) {
       console.error('Fetch error:', error);
@@ -116,7 +116,7 @@ const URLInvoiceScanner = () => {
               </Button>
             </form>
 
-            <div id="reader" className="hidden"></div>
+            <div id="reader" style={{ display: 'none' }}></div>
             
             {isProcessing && (
               <div className="text-center">
