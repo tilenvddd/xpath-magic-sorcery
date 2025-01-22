@@ -13,13 +13,14 @@ const URLInvoiceScanner = () => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleScanSuccess = (decodedText: string) => {
+    console.log("Successfully decoded QR code:", decodedText);
     setScanResult(decodedText);
     toast.success("QR code scanned successfully!");
     setIsProcessing(false);
   };
 
   const handleScanError = (err: string) => {
-    console.warn(err);
+    console.warn("Scan error:", err);
     setIsProcessing(false);
   };
 
@@ -31,10 +32,12 @@ const URLInvoiceScanner = () => {
     }
 
     setIsProcessing(true);
+    console.log("Starting to process URL:", url);
 
     try {
       // Use a CORS proxy service
       const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+      console.log("Fetching from proxy URL:", proxyUrl);
       
       const response = await fetch(proxyUrl);
 
@@ -43,6 +46,8 @@ const URLInvoiceScanner = () => {
       }
 
       const blob = await response.blob();
+      console.log("Received blob:", blob.type, blob.size);
+      
       const html5QrCode = new Html5Qrcode("reader");
 
       try {
@@ -50,11 +55,14 @@ const URLInvoiceScanner = () => {
           type: blob.type || 'image/jpeg',
           lastModified: Date.now()
         });
+        console.log("Created file object:", file.name, file.type, file.size);
 
         const qrCodeMessage = await html5QrCode.scanFile(file, true);
+        console.log("QR code scanning result:", qrCodeMessage);
         handleScanSuccess(qrCodeMessage);
       } catch (error) {
         if (error instanceof Error) {
+          console.error("QR code scanning error:", error);
           if (error.message.includes("No MultiFormat Readers")) {
             toast.error("Unable to detect QR code. Try these tips:\n- Ensure image is well-lit and in focus\n- QR code should be clearly visible\n- Try a higher resolution image");
           } else {
