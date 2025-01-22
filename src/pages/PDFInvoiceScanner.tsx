@@ -32,17 +32,20 @@ const PDFInvoiceScanner = () => {
     const context = canvas.getContext('2d');
     if (!context) return null;
 
-    // Define segment size (divide into 4 segments)
-    const segmentWidth = canvas.width / 2;
-    const segmentHeight = canvas.height / 2;
+    // Define segment size (divide into 12 segments - 4 rows x 3 columns)
+    const segmentWidth = canvas.width / 3;  // 3 columns
+    const segmentHeight = canvas.height / 4; // 4 rows
 
-    // Create segments
-    const segments = [
-      { x: 0, y: 0 },
-      { x: segmentWidth, y: 0 },
-      { x: 0, y: segmentHeight },
-      { x: segmentWidth, y: segmentHeight }
-    ];
+    // Create segments grid (4x3)
+    const segments = [];
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 3; col++) {
+        segments.push({
+          x: col * segmentWidth,
+          y: row * segmentHeight
+        });
+      }
+    }
 
     // Try scanning each segment
     for (const segment of segments) {
