@@ -28,6 +28,25 @@ const PDFInvoiceScanner = () => {
     setIsProcessing(false);
   };
 
+  const scanFullImage = async (canvas: HTMLCanvasElement, html5QrCode: Html5Qrcode): Promise<string | null> => {
+    try {
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((b) => {
+          if (b) resolve(b);
+        }, 'image/jpeg', 1.0);
+      });
+
+      const imageFile = new File([blob], 'full-image.jpg', { type: 'image/jpeg' });
+      const processedImage = await preprocessImage(imageFile);
+      const qrCodeMessage = await html5QrCode.scanFile(processedImage, /* verbose= */ true);
+      
+      return qrCodeMessage;
+    } catch (error) {
+      console.log("Full image scanning error:", error);
+      return null;
+    }
+  };
+
   const scanSegment = async (
     canvas: HTMLCanvasElement,
     html5QrCode: Html5Qrcode,
@@ -43,7 +62,6 @@ const PDFInvoiceScanner = () => {
 
     if (!segmentContext) return null;
 
-    // Draw segment to new canvas
     segmentContext.drawImage(
       canvas,
       x, y, width, height,
@@ -51,17 +69,13 @@ const PDFInvoiceScanner = () => {
     );
 
     try {
-      // Convert segment to blob
       const blob = await new Promise<Blob>((resolve) => {
         segmentCanvas.toBlob((b) => {
           if (b) resolve(b);
         }, 'image/jpeg', 1.0);
       });
 
-      // Create File from blob
       const segmentFile = new File([blob], 'segment.jpg', { type: 'image/jpeg' });
-      
-      // Process and scan segment
       const processedSegment = await preprocessImage(segmentFile);
       const qrCodeMessage = await html5QrCode.scanFile(processedSegment, /* verbose= */ true);
       
@@ -166,6 +180,15 @@ const PDFInvoiceScanner = () => {
       
       try {
         const canvas = await convertPDFToImage(file);
+        
+        // First try scanning the full image
+        const fullImageResult = await scanFullImage(canvas, html5QrCode);
+        if (fullImageResult) {
+          handleScanSuccess(fullImageResult);
+          return;
+        }
+
+        // If full image scan fails, try recursive segmentation
         const qrCodeMessage = await recursiveSegmentScan(
           canvas,
           html5QrCode,
